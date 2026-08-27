@@ -4,6 +4,7 @@ mod frb_generated;
 pub mod database;
 pub mod fetcher;
 pub mod dsp;
+pub mod audio_backend;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

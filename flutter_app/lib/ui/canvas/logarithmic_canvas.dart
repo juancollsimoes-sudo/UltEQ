@@ -1,15 +1,39 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../src/rust/api/simple.dart'; // FFI imports
 
-class LogarithmicCanvas extends StatelessWidget {
+class LogarithmicCanvas extends StatefulWidget {
   const LogarithmicCanvas({Key? key}) : super(key: key);
+
+  @override
+  State<LogarithmicCanvas> createState() => _LogarithmicCanvasState();
+}
+
+class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
+  List<Point> _responseCurve = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Boceto: llamada a la función de Rust vía FFI
+    _updateResponseCurve();
+  }
+
+  void _updateResponseCurve() {
+    // Ejemplo de llamada a Rust
+    // Esto es síncrono según la configuración actual del FFI en simple.rs
+    final points = calculateBiquadResponse(freq: 1000.0, gain: 6.0, q: 0.707);
+    setState(() {
+      _responseCurve = points;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF0D0F12),
       child: CustomPaint(
-        painter: _LogarithmicGridPainter(),
+        painter: _LogarithmicGridPainter(responseCurve: _responseCurve),
         size: Size.infinite,
       ),
     );
@@ -17,14 +41,24 @@ class LogarithmicCanvas extends StatelessWidget {
 }
 
 class _LogarithmicGridPainter extends CustomPainter {
+  final List<Point> responseCurve;
+  
   final double minFreq = 20.0;
   final double maxFreq = 20000.0;
   final double minDb = -15.0;
   final double maxDb = 15.0;
   final Color gridColor = const Color(0xFF262B34);
+  final Color curveColor = const Color(0xFF00FF00); // Color de la curva
+
+  _LogarithmicGridPainter({required this.responseCurve});
 
   @override
   void paint(Canvas canvas, Size size) {
+    _drawGrid(canvas, size);
+    _drawCurve(canvas, size);
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = gridColor
       ..strokeWidth = 1.0
@@ -90,6 +124,47 @@ class _LogarithmicGridPainter extends CustomPainter {
     }
   }
 
+  void _drawCurve(Canvas canvas, Size size) {
+    if (responseCurve.isEmpty) return;
+
+    final minLog = math.log(minFreq) / math.ln10;
+    final maxLog = math.log(maxFreq) / math.ln10;
+    final logRange = maxLog - minLog;
+
+    final paint = Paint()
+      ..color = curveColor
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    bool first = true;
+
+    for (final point in responseCurve) {
+      // Ignorar puntos fuera del rango visible si es necesario
+      if (point.x < minFreq || point.x > maxFreq) continue;
+
+      final logF = math.log(point.x) / math.ln10;
+      final normalizedX = (logF - minLog) / logRange;
+      final x = normalizedX * size.width;
+
+      // Clamping dB to visible area optional
+      final db = point.y.clamp(minDb, maxDb);
+      final normalizedY = 1.0 - ((db - minDb) / (maxDb - minDb));
+      final y = normalizedY * size.height;
+
+      if (first) {
+        path.moveTo(x, y);
+        first = false;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _LogarithmicGridPainter oldDelegate) {
+    return oldDelegate.responseCurve != responseCurve;
+  }
 }

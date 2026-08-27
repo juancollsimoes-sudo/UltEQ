@@ -31,16 +31,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FilterType dco_decode_filter_type(dynamic raw);
 
   @protected
+  HeadphoneModel dco_decode_headphone_model(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
   List<ActiveFilter> dco_decode_list_active_filter(dynamic raw);
+
+  @protected
+  List<HeadphoneModel> dco_decode_list_headphone_model(dynamic raw);
 
   @protected
   List<Point> dco_decode_list_point(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
 
   @protected
   Point dco_decode_point(dynamic raw);
@@ -64,10 +76,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FilterType sse_decode_filter_type(SseDeserializer deserializer);
 
   @protected
+  HeadphoneModel sse_decode_headphone_model(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
   List<ActiveFilter> sse_decode_list_active_filter(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<HeadphoneModel> sse_decode_list_headphone_model(
     SseDeserializer deserializer,
   );
 
@@ -76,6 +99,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
   Point sse_decode_point(SseDeserializer deserializer);
@@ -102,11 +128,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_filter_type(FilterType self, SseSerializer serializer);
 
   @protected
+  void sse_encode_headphone_model(
+    HeadphoneModel self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_active_filter(
     List<ActiveFilter> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_headphone_model(
+    List<HeadphoneModel> self,
     SseSerializer serializer,
   );
 
@@ -118,6 +159,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
   void sse_encode_point(Point self, SseSerializer serializer);

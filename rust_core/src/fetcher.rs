@@ -32,15 +32,23 @@ pub async fn initialize_autoeq_metadata(db_path: &str) -> Result<(), Box<dyn std
     let master_tree_url = "https://api.github.com/repos/jaakkopasanen/AutoEq/git/trees/master";
     let master_resp: GithubTreeResponse = client.get(master_tree_url).send().await?.json().await?;
 
-    // 2. Find "measurements" sha
+    // 2. Find "measurements" and "targets" sha
     let measurements_sha = master_resp.tree.iter()
         .find(|item| item.path == "measurements")
         .ok_or("Could not find 'measurements' directory in AutoEq master")?
         .sha.clone();
+        
+    let targets_sha = master_resp.tree.iter()
+        .find(|item| item.path == "targets")
+        .ok_or("Could not find 'targets' directory in AutoEq master")?
+        .sha.clone();
 
-    // 3. Fetch measurements tree recursively
+    // 3. Fetch measurements and targets tree recursively
     let measurements_tree_url = format!("https://api.github.com/repos/jaakkopasanen/AutoEq/git/trees/{}?recursive=1", measurements_sha);
     let measurements_resp: GithubTreeResponse = client.get(&measurements_tree_url).send().await?.json().await?;
+    
+    let targets_tree_url = format!("https://api.github.com/repos/jaakkopasanen/AutoEq/git/trees/{}?recursive=1", targets_sha);
+    let targets_resp: GithubTreeResponse = client.get(&targets_tree_url).send().await?.json().await?;
 
     let conn = Connection::open(db_path)?;
     database::setup_database(&conn)?;
@@ -73,9 +81,66 @@ pub async fn initialize_autoeq_metadata(db_path: &str) -> Result<(), Box<dyn std
             }
         }
     }
-
     println!("Successfully indexed {} AutoEq models into SQLite", count);
+    
+    let mut targets_count = 0;
+    for item in targets_resp.tree {
+        if item.item_type == "blob" && item.path.ends_with(".csv") {
+            let file_name = item.path.split('/').last().unwrap_or(&item.path);
+            let target_name = file_name.trim_end_matches(".csv");
+            
+            let url = format!("https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/targets/{}", item.path);
+            
+            match fetch_target_points(&client, &url).await {
+                Ok(points) => {
+                    if let Ok(spl_blob) = serde_json::to_vec(&points) {
+                        if database::insert_target(&conn, target_name, &spl_blob).is_ok() {
+                            targets_count += 1;
+                        }
+                    }
+                },
+                Err(e) => {
+                    println!("Failed to fetch target {}: {}", target_name, e);
+                }
+            }
+        }
+    }
+    println!("Successfully fetched and stored {} AutoEq targets", targets_count);
+
     Ok(())
+}
+
+async fn fetch_target_points(client: &reqwest::Client, url: &str) -> Result<Vec<MeasurementPoint>, Box<dyn std::error::Error>> {
+    let response = client.get(url).send().await?;
+    let text = response.text().await?;
+    
+    let mut rdr = csv::ReaderBuilder::new()
+        .flexible(true)
+        .from_reader(text.as_bytes());
+        
+    let headers = rdr.headers()?.clone();
+    let freq_idx = headers.iter().position(|h| h == "frequency").ok_or("Missing frequency column")?;
+    let raw_idx = headers.iter().position(|h| h == "raw").ok_or("Missing raw column")?;
+    
+    let mut points = Vec::new();
+    
+    for result in rdr.records() {
+        let record = result?;
+        
+        let frequency = record.get(freq_idx)
+            .unwrap_or("0.0")
+            .parse::<f32>()
+            .unwrap_or(0.0);
+            
+        let raw = record.get(raw_idx)
+            .unwrap_or("0.0")
+            .parse::<f32>()
+            .unwrap_or(0.0);
+            
+        points.push(MeasurementPoint { frequency, raw, target: None });
+    }
+    
+    Ok(points)
 }
 
 pub async fn fetch_autoeq_measurements(url: &str, db_path: &str) -> Result<(), Box<dyn std::error::Error>> {

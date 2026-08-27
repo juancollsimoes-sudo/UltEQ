@@ -79,3 +79,60 @@ pub fn calculate_biquad_response(filters: Vec<ActiveFilter>) -> Vec<Point> {
     
     points
 }
+
+pub struct HeadphoneModel {
+    pub brand: String,
+    pub model: String,
+    pub form_factor: Option<String>,
+    pub rig: Option<String>,
+    pub file_path: Option<String>,
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_headphone_models(db_path: String) -> Vec<HeadphoneModel> {
+    let mut models = Vec::new();
+    
+    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+        if let Ok(mut stmt) = conn.prepare("SELECT brand, model, form_factor, rig, file_path FROM measurements ORDER BY brand, model") {
+            let model_iter = stmt.query_map([], |row| {
+                Ok(HeadphoneModel {
+                    brand: row.get(0)?,
+                    model: row.get(1)?,
+                    form_factor: row.get(2)?,
+                    rig: row.get(3)?,
+                    file_path: row.get(4)?,
+                })
+            });
+            
+            if let Ok(iter) = model_iter {
+                for model in iter.flatten() {
+                    models.push(model);
+                }
+            }
+        }
+    }
+    
+    models
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_targets(db_path: String) -> Vec<String> {
+    let mut targets = Vec::new();
+    
+    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+        if let Ok(mut stmt) = conn.prepare("SELECT name FROM targets ORDER BY name") {
+            let target_iter = stmt.query_map([], |row| {
+                let name: String = row.get(0)?;
+                Ok(name)
+            });
+            
+            if let Ok(iter) = target_iter {
+                for target in iter.flatten() {
+                    targets.push(target);
+                }
+            }
+        }
+    }
+    
+    targets
+}

@@ -14,6 +14,15 @@ pub fn setup_database(conn: &Connection) -> Result<()> {
         [],
     )?;
     
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            points_blob BLOB NOT NULL
+        )",
+        [],
+    )?;
+    
     // Try to add file_path if table existed from before (ignore error if it already exists)
     let _ = conn.execute("ALTER TABLE measurements ADD COLUMN file_path TEXT UNIQUE", []);
     
@@ -33,6 +42,18 @@ pub fn insert_measurement(
         "INSERT OR IGNORE INTO measurements (brand, model, form_factor, rig, file_path, spl_blob)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         (brand, model, form_factor, rig, file_path, spl_blob),
+    )?;
+    Ok(())
+}
+
+pub fn insert_target(
+    conn: &Connection,
+    name: &str,
+    points_blob: &[u8],
+) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO targets (name, points_blob) VALUES (?1, ?2)",
+        (name, points_blob),
     )?;
     Ok(())
 }

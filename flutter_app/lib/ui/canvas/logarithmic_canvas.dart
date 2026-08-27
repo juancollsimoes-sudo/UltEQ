@@ -170,6 +170,15 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
                 widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
                 _focusNode.requestFocus();
               },
+              onDoubleTapDown: (details) {
+                final idx = _findNodeAt(details.localPosition, width, height);
+                if (idx == null) {
+                  final freq = _xToFreq(details.localPosition.dx, width);
+                  final gain = _yToGain(details.localPosition.dy, height);
+                  widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
+                  _focusNode.requestFocus();
+                }
+              },
               onTapDown: (details) {
                 final idx = _findNodeAt(details.localPosition, width, height);
                 widget.eqState.selectNode(idx);

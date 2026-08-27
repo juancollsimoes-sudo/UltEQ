@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../src/rust/api/simple.dart';
 
 class Sidebar extends StatefulWidget {
   const Sidebar({super.key});
@@ -8,23 +9,16 @@ class Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<Sidebar> {
-  final List<Map<String, String>> _models = [];
+  final List<HeadphoneModel> _models = [];
 
   void _addModel(String type) {
     setState(() {
-      if (type == 'IE') {
-        _models.add({
-          'name': 'Moondrop Aria ($type)',
-          'target': 'Harman IE 2019',
-          'tool': 'B&K 5128',
-        });
-      } else {
-        _models.add({
-          'name': 'Sennheiser HD600 ($type)',
-          'target': 'Harman OE 2018',
-          'tool': 'GRAS 43AG',
-        });
-      }
+      final allModels = getModels();
+      final model = allModels.firstWhere(
+        (m) => m.modelType == type,
+        orElse: () => allModels.first,
+      );
+      _models.add(model);
     });
   }
 
@@ -80,8 +74,8 @@ class _SidebarState extends State<Sidebar> {
               itemBuilder: (context, index) {
                 final model = _models[index];
                 return ListTile(
-                  title: Text(model['name']!),
-                  subtitle: Text('Target: ${model['target']!}\nTool: ${model['tool']!}'),
+                  title: Text(model.name),
+                  subtitle: Text('Target: ${model.defaultTarget}\nTool: ${model.tool}'),
                   isThreeLine: true,
                 );
               },

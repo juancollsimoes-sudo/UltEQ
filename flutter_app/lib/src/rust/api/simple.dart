@@ -14,6 +14,12 @@ List<Point> calculateBiquadResponse({required List<ActiveFilter> filters}) =>
       filters: filters,
     );
 
+List<HeadphoneModel> getHeadphoneModels({required String dbPath}) =>
+    RustLib.instance.api.crateApiSimpleGetHeadphoneModels(dbPath: dbPath);
+
+List<String> getTargets({required String dbPath}) =>
+    RustLib.instance.api.crateApiSimpleGetTargets(dbPath: dbPath);
+
 class ActiveFilter {
   final FilterType filterType;
   final double freq;
@@ -43,6 +49,41 @@ class ActiveFilter {
 }
 
 enum FilterType { peaking, lowShelf, highShelf }
+
+class HeadphoneModel {
+  final String brand;
+  final String model;
+  final String? formFactor;
+  final String? rig;
+  final String? filePath;
+
+  const HeadphoneModel({
+    required this.brand,
+    required this.model,
+    this.formFactor,
+    this.rig,
+    this.filePath,
+  });
+
+  @override
+  int get hashCode =>
+      brand.hashCode ^
+      model.hashCode ^
+      formFactor.hashCode ^
+      rig.hashCode ^
+      filePath.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HeadphoneModel &&
+          runtimeType == other.runtimeType &&
+          brand == other.brand &&
+          model == other.model &&
+          formFactor == other.formFactor &&
+          rig == other.rig &&
+          filePath == other.filePath;
+}
 
 class Point {
   final double x;

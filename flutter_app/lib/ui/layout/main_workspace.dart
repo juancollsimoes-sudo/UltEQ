@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/ui/canvas/logarithmic_canvas.dart';
 import 'package:flutter_app/ui/controls/band_list_panel.dart';
+import 'package:flutter_app/ui/controls/target_adjustments_panel.dart';
 import 'package:flutter_app/ui/sidebar/sidebar.dart';
 import 'package:flutter_app/models/eq_state.dart';
 
@@ -30,27 +31,37 @@ class _MainWorkspaceState extends State<MainWorkspace> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Left side (Canvas + Band List)
+        // Left + Center + Bottom Area
         Expanded(
-          flex: 3,
           child: Column(
             children: [
-              // Canvas on top
+              // Top Area: Left Panel + Canvas
               Expanded(
-                flex: 2,
-                child: LogarithmicCanvas(eqState: _eqState),
+                child: Row(
+                  children: [
+                    // Left Side: Band List
+                    Container(
+                      width: 250,
+                      decoration: const BoxDecoration(
+                        border: Border(right: BorderSide(color: Colors.white24, width: 1)),
+                      ),
+                      child: BandListPanel(eqState: _eqState),
+                    ),
+                    // Center: Canvas
+                    Expanded(
+                      child: LogarithmicCanvas(eqState: _eqState),
+                    ),
+                  ],
+                ),
               ),
-              // Band List on bottom
-              Expanded(
-                flex: 1,
-                child: BandListPanel(eqState: _eqState),
-              ),
+              // Bottom: Target Adjustments Panel
+              const TargetAdjustmentsPanel(),
             ],
           ),
         ),
         // Right side (Sidebar)
         Container(
-          width: 300, // Fixed width for sidebar
+          width: 300,
           decoration: const BoxDecoration(
             border: Border(left: BorderSide(color: Colors.white24, width: 1)),
           ),

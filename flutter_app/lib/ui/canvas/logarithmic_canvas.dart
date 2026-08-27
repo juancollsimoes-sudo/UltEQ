@@ -3,29 +3,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../src/rust/api/simple.dart'; // FFI imports
-
-enum EqFilterType {
-  peaking,
-  lowShelf,
-  highShelf,
-}
-
-class EqNode {
-  double freq;
-  double gain;
-  double q;
-  EqFilterType type;
-
-  EqNode({
-    required this.freq,
-    required this.gain,
-    required this.q,
-    this.type = EqFilterType.peaking,
-  });
-}
+import '../../models/eq_state.dart';
 
 class LogarithmicCanvas extends StatefulWidget {
-  const LogarithmicCanvas({Key? key}) : super(key: key);
+  final EqState eqState;
+
+  const LogarithmicCanvas({Key? key, required this.eqState}) : super(key: key);
 
   @override
   State<LogarithmicCanvas> createState() => _LogarithmicCanvasState();
@@ -33,8 +16,6 @@ class LogarithmicCanvas extends StatefulWidget {
 
 class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   List<Point> _responseCurve = [];
-  final List<EqNode> _nodes = [];
-  int? _selectedNodeIndex;
   final FocusNode _focusNode = FocusNode();
 
   final double minFreq = 20.0;
@@ -45,40 +26,48 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   @override
   void initState() {
     super.initState();
-    _nodes.add(EqNode(freq: 1000.0, gain: 0.0, q: 0.707));
+    widget.eqState.addListener(_onEqStateChanged);
     _updateResponseCurve();
   }
 
   @override
+  void didUpdateWidget(covariant LogarithmicCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.eqState != widget.eqState) {
+      oldWidget.eqState.removeListener(_onEqStateChanged);
+      widget.eqState.addListener(_onEqStateChanged);
+      _updateResponseCurve();
+    }
+  }
+
+  @override
   void dispose() {
+    widget.eqState.removeListener(_onEqStateChanged);
     _focusNode.dispose();
     super.dispose();
   }
 
+  void _onEqStateChanged() {
+    _updateResponseCurve();
+  }
+
   void _updateResponseCurve() {
-    if (_nodes.isEmpty) {
+    if (widget.eqState.nodes.isEmpty) {
       setState(() {
         _responseCurve = [];
       });
       return;
     }
 
-    List<Point>? combined;
-
-    for (var node in _nodes) {
-      // Usamos el backend de rust que por ahora calcula un PeakingEQ.
-      final points = calculateBiquadResponse(freq: node.freq, gain: node.gain, q: node.q);
-      if (combined == null) {
-        combined = points;
-      } else {
-        for (int i = 0; i < combined.length && i < points.length; i++) {
-          combined[i] = Point(x: combined[i].x, y: combined[i].y + points[i].y);
-        }
-      }
-    }
+    final filters = widget.eqState.nodes.map((node) {
+      FilterType rType = FilterType.peaking;
+      if (node.type == EqFilterType.lowShelf) rType = FilterType.lowShelf;
+      if (node.type == EqFilterType.highShelf) rType = FilterType.highShelf;
+      return ActiveFilter(filterType: rType, freq: node.freq, gain: node.gain, q: node.q);
+    }).toList();
 
     setState(() {
-      _responseCurve = combined ?? [];
+      _responseCurve = calculateBiquadResponse(filters: filters);
     });
   }
 
@@ -114,8 +103,9 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   }
 
   int? _findNodeAt(Offset position, double width, double height) {
-    for (int i = _nodes.length - 1; i >= 0; i--) {
-      final node = _nodes[i];
+    final nodes = widget.eqState.nodes;
+    for (int i = nodes.length - 1; i >= 0; i--) {
+      final node = nodes[i];
       final nodeX = _freqToX(node.freq, width);
       final nodeY = _gainToY(node.gain, height);
       final dist = math.sqrt(math.pow(nodeX - position.dx, 2) + math.pow(nodeY - position.dy, 2));
@@ -133,19 +123,19 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
       autofocus: true,
       onKeyEvent: (FocusNode node, KeyEvent event) {
         if (event is KeyDownEvent) {
-          if (_selectedNodeIndex != null) {
+          final selectedNodeIndex = widget.eqState.selectedIndex;
+          if (selectedNodeIndex != null) {
             final key = event.logicalKey;
             if (key == LogicalKeyboardKey.keyQ) {
-              setState(() {
-                _nodes[_selectedNodeIndex!].type = EqFilterType.lowShelf;
-                _updateResponseCurve();
-              });
+              widget.eqState.nodes[selectedNodeIndex].type = EqFilterType.lowShelf;
+              widget.eqState.triggerUpdate();
               return KeyEventResult.handled;
             } else if (key == LogicalKeyboardKey.keyE) {
-              setState(() {
-                _nodes[_selectedNodeIndex!].type = EqFilterType.highShelf;
-                _updateResponseCurve();
-              });
+              widget.eqState.nodes[selectedNodeIndex].type = EqFilterType.highShelf;
+              widget.eqState.triggerUpdate();
+              return KeyEventResult.handled;
+            } else if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
+              widget.eqState.removeNode(selectedNodeIndex);
               return KeyEventResult.handled;
             }
           }
@@ -162,16 +152,14 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
               if (pointerSignal is PointerScrollEvent) {
                 final hoverIndex = _findNodeAt(pointerSignal.localPosition, width, height);
                 if (hoverIndex != null) {
-                  setState(() {
-                    final node = _nodes[hoverIndex];
-                    final scrollDelta = pointerSignal.scrollDelta.dy;
-                    if (scrollDelta > 0) {
-                      node.q = (node.q - 0.1).clamp(0.1, 10.0);
-                    } else {
-                      node.q = (node.q + 0.1).clamp(0.1, 10.0);
-                    }
-                    _updateResponseCurve();
-                  });
+                  final node = widget.eqState.nodes[hoverIndex];
+                  final scrollDelta = pointerSignal.scrollDelta.dy;
+                  if (scrollDelta > 0) {
+                    node.q = (node.q - 0.1).clamp(0.1, 10.0);
+                  } else {
+                    node.q = (node.q + 0.1).clamp(0.1, 10.0);
+                  }
+                  widget.eqState.triggerUpdate();
                 }
               }
             },
@@ -179,46 +167,37 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
               onSecondaryTapUp: (details) {
                 final freq = _xToFreq(details.localPosition.dx, width);
                 final gain = _yToGain(details.localPosition.dy, height);
-                setState(() {
-                  _nodes.add(EqNode(freq: freq, gain: gain, q: 0.707));
-                  _selectedNodeIndex = _nodes.length - 1;
-                  _focusNode.requestFocus();
-                  _updateResponseCurve();
-                });
+                widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
+                _focusNode.requestFocus();
               },
               onTapDown: (details) {
                 final idx = _findNodeAt(details.localPosition, width, height);
-                setState(() {
-                  _selectedNodeIndex = idx;
-                  if (idx != null) {
-                    _focusNode.requestFocus();
-                  }
-                });
+                widget.eqState.selectNode(idx);
+                if (idx != null) {
+                  _focusNode.requestFocus();
+                }
               },
               onPanStart: (details) {
                 final idx = _findNodeAt(details.localPosition, width, height);
                 if (idx != null) {
-                  setState(() {
-                    _selectedNodeIndex = idx;
-                    _focusNode.requestFocus();
-                  });
+                  widget.eqState.selectNode(idx);
+                  _focusNode.requestFocus();
                 }
               },
               onPanUpdate: (details) {
-                if (_selectedNodeIndex != null) {
-                  setState(() {
-                    final node = _nodes[_selectedNodeIndex!];
-                    final currentX = _freqToX(node.freq, width);
-                    final currentY = _gainToY(node.gain, height);
+                final selectedNodeIndex = widget.eqState.selectedIndex;
+                if (selectedNodeIndex != null) {
+                  final node = widget.eqState.nodes[selectedNodeIndex];
+                  final currentX = _freqToX(node.freq, width);
+                  final currentY = _gainToY(node.gain, height);
 
-                    final newX = currentX + details.delta.dx;
-                    final newY = currentY + details.delta.dy;
+                  final newX = currentX + details.delta.dx;
+                  final newY = currentY + details.delta.dy;
 
-                    node.freq = _xToFreq(newX, width).clamp(minFreq, maxFreq);
-                    node.gain = _yToGain(newY, height).clamp(minDb, maxDb);
-                    
-                    _updateResponseCurve();
-                  });
+                  node.freq = _xToFreq(newX, width).clamp(minFreq, maxFreq);
+                  node.gain = _yToGain(newY, height).clamp(minDb, maxDb);
+                  
+                  widget.eqState.triggerUpdate();
                 }
               },
               child: Container(
@@ -226,8 +205,8 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
                 child: CustomPaint(
                   painter: _LogarithmicGridPainter(
                     responseCurve: _responseCurve,
-                    nodes: _nodes,
-                    selectedNodeIndex: _selectedNodeIndex,
+                    nodes: widget.eqState.nodes,
+                    selectedNodeIndex: widget.eqState.selectedIndex,
                     minFreq: minFreq,
                     maxFreq: maxFreq,
                     minDb: minDb,

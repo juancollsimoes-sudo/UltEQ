@@ -79,9 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
 abstract class RustLibApi extends BaseApi {
   List<Point> crateApiSimpleCalculateBiquadResponse({
-    required double freq,
-    required double gain,
-    required double q,
+    required List<ActiveFilter> filters,
   });
 
   String crateApiSimpleGreet({required String name});
@@ -99,17 +97,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   List<Point> crateApiSimpleCalculateBiquadResponse({
-    required double freq,
-    required double gain,
-    required double q,
+    required List<ActiveFilter> filters,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_f_32(freq, serializer);
-          sse_encode_f_32(gain, serializer);
-          sse_encode_f_32(q, serializer);
+          sse_encode_list_active_filter(filters, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
         },
         codec: SseCodec(
@@ -117,7 +111,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiSimpleCalculateBiquadResponseConstMeta,
-        argValues: [freq, gain, q],
+        argValues: [filters],
         apiImpl: this,
       ),
     );
@@ -126,7 +120,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiSimpleCalculateBiquadResponseConstMeta =>
       const TaskConstMeta(
         debugName: "calculate_biquad_response",
-        argNames: ["freq", "gain", "q"],
+        argNames: ["filters"],
       );
 
   @override
@@ -186,9 +180,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ActiveFilter dco_decode_active_filter(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ActiveFilter(
+      filterType: dco_decode_filter_type(arr[0]),
+      freq: dco_decode_f_32(arr[1]),
+      gain: dco_decode_f_32(arr[2]),
+      q: dco_decode_f_32(arr[3]),
+    );
+  }
+
+  @protected
   double dco_decode_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  FilterType dco_decode_filter_type(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FilterType.values[raw as int];
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  List<ActiveFilter> dco_decode_list_active_filter(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_active_filter).toList();
   }
 
   @protected
@@ -232,9 +258,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ActiveFilter sse_decode_active_filter(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_filterType = sse_decode_filter_type(deserializer);
+    var var_freq = sse_decode_f_32(deserializer);
+    var var_gain = sse_decode_f_32(deserializer);
+    var var_q = sse_decode_f_32(deserializer);
+    return ActiveFilter(
+      filterType: var_filterType,
+      freq: var_freq,
+      gain: var_gain,
+      q: var_q,
+    );
+  }
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat32();
+  }
+
+  @protected
+  FilterType sse_decode_filter_type(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FilterType.values[inner];
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  List<ActiveFilter> sse_decode_list_active_filter(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ActiveFilter>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_active_filter(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -276,12 +344,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
-  }
-
-  @protected
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
@@ -294,9 +356,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_active_filter(ActiveFilter self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_filter_type(self.filterType, serializer);
+    sse_encode_f_32(self.freq, serializer);
+    sse_encode_f_32(self.gain, serializer);
+    sse_encode_f_32(self.q, serializer);
+  }
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat32(self);
+  }
+
+  @protected
+  void sse_encode_filter_type(FilterType self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_list_active_filter(
+    List<ActiveFilter> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_active_filter(item, serializer);
+    }
   }
 
   @protected
@@ -334,12 +429,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-  }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
   }
 
   @protected

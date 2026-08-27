@@ -68,14 +68,12 @@ fn wire__crate__api__simple__calculate_biquad_response_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_freq = <f32>::sse_decode(&mut deserializer);
-            let api_gain = <f32>::sse_decode(&mut deserializer);
-            let api_q = <f32>::sse_decode(&mut deserializer);
+            let api_filters =
+                <Vec<crate::api::simple::ActiveFilter>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Ok::<_, ()>(crate::api::simple::calculate_biquad_response(
-                    api_freq, api_gain, api_q,
-                ))?;
+                let output_ok =
+                    Ok::<_, ()>(crate::api::simple::calculate_biquad_response(api_filters))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -156,10 +154,58 @@ impl SseDecode for String {
     }
 }
 
+impl SseDecode for crate::api::simple::ActiveFilter {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_filterType = <crate::api::simple::FilterType>::sse_decode(deserializer);
+        let mut var_freq = <f32>::sse_decode(deserializer);
+        let mut var_gain = <f32>::sse_decode(deserializer);
+        let mut var_q = <f32>::sse_decode(deserializer);
+        return crate::api::simple::ActiveFilter {
+            filter_type: var_filterType,
+            freq: var_freq,
+            gain: var_gain,
+            q: var_q,
+        };
+    }
+}
+
 impl SseDecode for f32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_f32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for crate::api::simple::FilterType {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::simple::FilterType::Peaking,
+            1 => crate::api::simple::FilterType::LowShelf,
+            2 => crate::api::simple::FilterType::HighShelf,
+            _ => unreachable!("Invalid variant for FilterType: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for i32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for Vec<crate::api::simple::ActiveFilter> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::simple::ActiveFilter>::sse_decode(deserializer));
+        }
+        return ans_;
     }
 }
 
@@ -208,13 +254,6 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
-impl SseDecode for i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_i32::<NativeEndian>().unwrap()
-    }
-}
-
 impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -253,6 +292,51 @@ fn pde_ffi_dispatcher_sync_impl(
 // Section: rust2dart
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::ActiveFilter {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.filter_type.into_into_dart().into_dart(),
+            self.freq.into_into_dart().into_dart(),
+            self.gain.into_into_dart().into_dart(),
+            self.q.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::ActiveFilter
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::ActiveFilter>
+    for crate::api::simple::ActiveFilter
+{
+    fn into_into_dart(self) -> crate::api::simple::ActiveFilter {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::FilterType {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Peaking => 0.into_dart(),
+            Self::LowShelf => 1.into_dart(),
+            Self::HighShelf => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::FilterType
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::FilterType>
+    for crate::api::simple::FilterType
+{
+    fn into_into_dart(self) -> crate::api::simple::FilterType {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::simple::Point {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -276,10 +360,54 @@ impl SseEncode for String {
     }
 }
 
+impl SseEncode for crate::api::simple::ActiveFilter {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::simple::FilterType>::sse_encode(self.filter_type, serializer);
+        <f32>::sse_encode(self.freq, serializer);
+        <f32>::sse_encode(self.gain, serializer);
+        <f32>::sse_encode(self.q, serializer);
+    }
+}
+
 impl SseEncode for f32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_f32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::simple::FilterType {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::simple::FilterType::Peaking => 0,
+                crate::api::simple::FilterType::LowShelf => 1,
+                crate::api::simple::FilterType::HighShelf => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for i32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for Vec<crate::api::simple::ActiveFilter> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::simple::ActiveFilter>::sse_encode(item, serializer);
+        }
     }
 }
 
@@ -321,13 +449,6 @@ impl SseEncode for u8 {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
-}
-
-impl SseEncode for i32 {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
-    }
 }
 
 impl SseEncode for bool {

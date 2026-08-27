@@ -1,29 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/ui/canvas/logarithmic_canvas.dart';
-import 'package:flutter_app/ui/controls/eq_panel.dart';
+import 'package:flutter_app/ui/controls/band_list_panel.dart';
 import 'package:flutter_app/ui/sidebar/sidebar.dart';
+import 'package:flutter_app/models/eq_state.dart';
 
-class MainWorkspace extends StatelessWidget {
+class MainWorkspace extends StatefulWidget {
   const MainWorkspace({super.key});
+
+  @override
+  State<MainWorkspace> createState() => _MainWorkspaceState();
+}
+
+class _MainWorkspaceState extends State<MainWorkspace> {
+  late final EqState _eqState;
+
+  @override
+  void initState() {
+    super.initState();
+    _eqState = EqState();
+  }
+
+  @override
+  void dispose() {
+    _eqState.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Left side (Canvas + EQ Panel)
+        // Left side (Canvas + Band List)
         Expanded(
           flex: 3,
           child: Column(
             children: [
               // Canvas on top
-              const Expanded(
+              Expanded(
                 flex: 2,
-                child: LogarithmicCanvas(),
+                child: LogarithmicCanvas(eqState: _eqState),
               ),
-              // EQ Panel on bottom
-              const Expanded(
+              // Band List on bottom
+              Expanded(
                 flex: 1,
-                child: EqPanel(),
+                child: BandListPanel(eqState: _eqState),
               ),
             ],
           ),

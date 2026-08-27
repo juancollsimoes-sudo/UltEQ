@@ -9,15 +9,40 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
 
-List<Point> calculateBiquadResponse({
-  required double freq,
-  required double gain,
-  required double q,
-}) => RustLib.instance.api.crateApiSimpleCalculateBiquadResponse(
-  freq: freq,
-  gain: gain,
-  q: q,
-);
+List<Point> calculateBiquadResponse({required List<ActiveFilter> filters}) =>
+    RustLib.instance.api.crateApiSimpleCalculateBiquadResponse(
+      filters: filters,
+    );
+
+class ActiveFilter {
+  final FilterType filterType;
+  final double freq;
+  final double gain;
+  final double q;
+
+  const ActiveFilter({
+    required this.filterType,
+    required this.freq,
+    required this.gain,
+    required this.q,
+  });
+
+  @override
+  int get hashCode =>
+      filterType.hashCode ^ freq.hashCode ^ gain.hashCode ^ q.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActiveFilter &&
+          runtimeType == other.runtimeType &&
+          filterType == other.filterType &&
+          freq == other.freq &&
+          gain == other.gain &&
+          q == other.q;
+}
+
+enum FilterType { peaking, lowShelf, highShelf }
 
 class Point {
   final double x;

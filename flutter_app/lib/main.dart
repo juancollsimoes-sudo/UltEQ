@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/src/rust/frb_generated.dart';
-import 'package:flutter_app/ui/canvas/logarithmic_canvas.dart';
 import 'package:flutter_app/ui/layout/main_workspace.dart';
 
 Future<void> main() async {

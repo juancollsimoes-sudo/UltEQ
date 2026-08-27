@@ -12,6 +12,9 @@ reqwest = { version = "0.13.4", features = ["json"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 tokio = { version = "1.53.1", features = ["full"] }
 flutter_rust_bridge = "=2.13.0"
+biquad = "0.6.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

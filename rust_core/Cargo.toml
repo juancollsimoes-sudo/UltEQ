@@ -3,4 +3,15 @@ name = "rust_core"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
 [dependencies]
+csv = "1.4.0"
+reqwest = { version = "0.13.4", features = ["json"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+tokio = { version = "1.53.1", features = ["full"] }
+flutter_rust_bridge = "=2.13.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

@@ -334,28 +334,85 @@ fn interpolate_points(points: &[Point], f: f32) -> f32 {
 pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) -> Vec<ActiveFilter> {
     let mut filters = Vec::new();
     
-    // Generate logarithmic spaced center frequencies (e.g. 10 bands like a Graphic EQ)
-    let min_f: f32 = 31.5;
-    let max_f: f32 = 16000.0;
+    let min_f: f32 = 20.0;
+    let max_f: f32 = 20000.0;
+    let steps = 200;
     
-    for i in 0..bands {
-        let frac = if bands > 1 { i as f32 / (bands - 1) as f32 } else { 0.5 };
-        let center_f = min_f * (max_f / min_f).powf(frac);
-        
-        let hp_val = interpolate_points(&headphone, center_f);
-        let tg_val = interpolate_points(&target, center_f);
-        
+    let mut error_curve: Vec<(f32, f32)> = (0..=steps).map(|i| {
+        let f = min_f * (max_f / min_f).powf(i as f32 / steps as f32);
+        let hp_val = interpolate_points(&headphone, f);
+        let tg_val = interpolate_points(&target, f);
         let gain = tg_val - hp_val;
+        (f, gain)
+    }).collect();
+    
+    for _ in 0..bands {
+        let mut max_idx = 0;
+        let mut max_err_abs = -1.0;
         
-        // Q=1.41 represents roughly 1 octave bandwidth, perfect for 10-band GEQ
-        let q = if bands == 10 { 1.41 } else { 1.41 * (bands as f32 / 10.0) };
+        for (i, &(_, err)) in error_curve.iter().enumerate() {
+            if err.abs() > max_err_abs {
+                max_err_abs = err.abs();
+                max_idx = i;
+            }
+        }
         
-        filters.push(ActiveFilter {
+        if max_err_abs < 0.1 {
+            break;
+        }
+        
+        let center_f = error_curve[max_idx].0;
+        let gain = error_curve[max_idx].1;
+        
+        let target_err = gain / 2.0;
+        
+        let mut idx_left = max_idx;
+        while idx_left > 0 {
+            let err = error_curve[idx_left].1;
+            if (gain >= 0.0 && err <= target_err) || (gain < 0.0 && err >= target_err) {
+                break;
+            }
+            idx_left -= 1;
+        }
+        
+        let mut idx_right = max_idx;
+        while idx_right < error_curve.len() - 1 {
+            let err = error_curve[idx_right].1;
+            if (gain >= 0.0 && err <= target_err) || (gain < 0.0 && err >= target_err) {
+                break;
+            }
+            idx_right += 1;
+        }
+        
+        let f1 = error_curve[idx_left].0;
+        let f2 = error_curve[idx_right].0;
+        
+        let mut bw_octaves = 1.0;
+        if f1 < f2 {
+            bw_octaves = (f2 / f1).log2();
+        }
+        if bw_octaves <= 0.0 {
+            bw_octaves = 1.0;
+        }
+        
+        let two_pow_bw = 2.0_f32.powf(bw_octaves);
+        let mut q = two_pow_bw.sqrt() / (two_pow_bw - 1.0);
+        q = q.clamp(0.1, 10.0);
+        
+        let filter = ActiveFilter {
             filter_type: FilterType::Peaking,
             freq: center_f,
             gain,
             q,
-        });
+        };
+        
+        filters.push(filter);
+        
+        let response = calculate_biquad_response(vec![filter]);
+        for (f, err) in error_curve.iter_mut() {
+            let filter_gain = interpolate_points(&response, *f);
+            *err -= filter_gain;
+        }
     }
     
     filters

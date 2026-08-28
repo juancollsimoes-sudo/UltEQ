@@ -9,17 +9,20 @@ pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
 }
 
+#[derive(Clone, Copy)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
+#[derive(Clone, Copy)]
 pub enum FilterType {
     Peaking,
     LowShelf,
     HighShelf,
 }
 
+#[derive(Clone, Copy)]
 pub struct ActiveFilter {
     pub filter_type: FilterType,
     pub freq: f32,
@@ -304,4 +307,129 @@ context.modules = [
             // For now, spawn returns Result<Child, Error>. We just log error.
             panic!("Failed to start PipeWire EQ: {}", e);
         });
+}
+
+fn interpolate_points(points: &[Point], f: f32) -> f32 {
+    if points.is_empty() { return 0.0; }
+    if points.len() == 1 { return points[0].y; }
+    if f <= points[0].x { return points[0].y; }
+    if f >= points.last().unwrap().x { return points.last().unwrap().y; }
+    
+    let idx = points.partition_point(|p| p.x <= f);
+    if idx == 0 { return points[0].y; }
+    let p1 = &points[idx - 1];
+    let p2 = &points[idx];
+    
+    let log_f = f.log10();
+    let log_x1 = p1.x.log10();
+    let log_x2 = p2.x.log10();
+    
+    if log_x1 == log_x2 { return p1.y; }
+    
+    let t = (log_f - log_x1) / (log_x2 - log_x1);
+    p1.y + t * (p2.y - p1.y)
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) -> Vec<ActiveFilter> {
+    let mut freqs = Vec::new();
+    let min_f: f32 = 20.0;
+    let max_f: f32 = 20000.0;
+    let steps = 200;
+    for i in 0..=steps {
+        freqs.push(min_f * (max_f / min_f).powf(i as f32 / steps as f32));
+    }
+    
+    let mut eq_req: Vec<f32> = freqs.iter().map(|&f| {
+        interpolate_points(&target, f) - interpolate_points(&headphone, f)
+    }).collect();
+    
+    let mut filters = Vec::new();
+    
+    for _ in 0..bands {
+        let mut max_abs = 0.0;
+        let mut max_idx = 0;
+        for (i, &err) in eq_req.iter().enumerate() {
+            if err.abs() > max_abs {
+                max_abs = err.abs();
+                max_idx = i;
+            }
+        }
+        
+        if max_abs < 0.1 { break; }
+        
+        let f = freqs[max_idx];
+        let gain = eq_req[max_idx];
+        let q = 1.41;
+        
+        let filter = ActiveFilter {
+            filter_type: FilterType::Peaking,
+            freq: f,
+            gain,
+            q,
+        };
+        
+        let response = calculate_biquad_response(vec![filter]);
+        
+        for (i, p) in response.iter().enumerate() {
+            eq_req[i] -= p.y;
+        }
+        
+        filters.push(filter);
+    }
+    
+    filters
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn modify_target(base_target: Vec<Point>, tilt: f32, bass: f32, treble: f32, ear_gain: f32) -> Vec<Point> {
+    let mut filters = Vec::new();
+    
+    if bass != 0.0 {
+        filters.push(ActiveFilter {
+            filter_type: FilterType::LowShelf,
+            freq: 105.0,
+            gain: bass,
+            q: 0.71, // roughly standard Q for shelf
+        });
+    }
+    
+    if treble != 0.0 {
+        filters.push(ActiveFilter {
+            filter_type: FilterType::HighShelf,
+            freq: 10000.0,
+            gain: treble,
+            q: 0.71,
+        });
+    }
+    
+    if ear_gain != 0.0 {
+        filters.push(ActiveFilter {
+            filter_type: FilterType::Peaking,
+            freq: 3000.0, // standard ear gain region
+            gain: ear_gain,
+            q: 0.5, // wide q for ear gain
+        });
+    }
+    
+    let response = calculate_biquad_response(filters);
+    
+    let mut new_target = Vec::new();
+    for p in base_target.iter() {
+        let f = p.x;
+        let mut y = p.y;
+        
+        // Tilt: applied relative to 1kHz
+        if tilt != 0.0 {
+            let octaves_from_1k = (f / 1000.0).log2();
+            y += octaves_from_1k * tilt;
+        }
+        
+        // Add digital biquad response
+        y += interpolate_points(&response, f);
+        
+        new_target.push(Point { x: f, y });
+    }
+    
+    new_target
 }

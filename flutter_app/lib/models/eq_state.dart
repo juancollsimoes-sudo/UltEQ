@@ -26,15 +26,34 @@ class EqState extends ChangeNotifier {
   int? selectedIndex;
   List<Point> targetCurve = [];
   List<Point> headphoneCurve = [];
+  
+  String? selectedOutputDevice;
+  HeadphoneModel? activeHeadphone;
+  bool normalizeToTarget = false;
+
+  void toggleNormalize() {
+    normalizeToTarget = !normalizeToTarget;
+    notifyListeners();
+  }
 
   void loadTarget(String targetName) {
     targetCurve = getTargetCurve(dbPath: 'ulteq.db', targetName: targetName);
     notifyListeners();
   }
 
-  Future<void> loadHeadphone(String filePath) async {
-    // getHeadphoneCurve from FFI is synchronous in this bridge
-    headphoneCurve = getHeadphoneCurve(filePath: filePath);
+  Future<void> loadHeadphone(HeadphoneModel model) async {
+    activeHeadphone = model;
+    if (model.filePath != null) {
+      headphoneCurve = getHeadphoneCurve(filePath: model.filePath!);
+    } else {
+      headphoneCurve = [];
+    }
+    notifyListeners();
+  }
+
+  void clearHeadphone() {
+    activeHeadphone = null;
+    headphoneCurve = [];
     notifyListeners();
   }
 

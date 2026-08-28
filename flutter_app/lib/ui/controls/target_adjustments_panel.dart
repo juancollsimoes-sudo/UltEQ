@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../src/rust/api/simple.dart';
-
 import '../../models/eq_state.dart';
 
 class TargetAdjustmentsPanel extends StatefulWidget {
@@ -19,16 +18,62 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
   double treble = 0.0;
   
   String? selectedTarget;
-  List<String> targets = [];
+  List<String> allTargets = [];
 
   @override
   void initState() {
     super.initState();
-    targets = getTargets(dbPath: 'ulteq.db');
-    if (targets.isNotEmpty) {
-      selectedTarget = targets.first;
-      widget.eqState.loadTarget(selectedTarget!);
+    allTargets = getTargets(dbPath: 'ulteq.db');
+    widget.eqState.addListener(_onEqStateChanged);
+    _updateSelectedTarget();
+  }
+
+  @override
+  void dispose() {
+    widget.eqState.removeListener(_onEqStateChanged);
+    super.dispose();
+  }
+
+  void _onEqStateChanged() {
+    _updateSelectedTarget();
+  }
+
+  void _updateSelectedTarget() {
+    final filtered = _getFilteredTargets();
+    if (filtered.isEmpty) {
+      if (selectedTarget != null) {
+        setState(() => selectedTarget = null);
+        widget.eqState.targetCurve = [];
+      }
+      return;
     }
+
+    if (selectedTarget == null || !filtered.contains(selectedTarget)) {
+      setState(() {
+        selectedTarget = filtered.first;
+      });
+      widget.eqState.loadTarget(selectedTarget!);
+    } else {
+      // call setState just in case we need to rebuild
+      setState(() {});
+    }
+  }
+
+  List<String> _getFilteredTargets() {
+    final active = widget.eqState.activeHeadphone;
+    if (active == null || active.formFactor == null) return [];
+    
+    final ff = active.formFactor!.toLowerCase();
+    
+    return allTargets.where((t) {
+      final targetLower = t.toLowerCase();
+      if (ff.contains('in-ear') || ff == 'ie') {
+        return targetLower.contains('in-ear');
+      } else if (ff.contains('over-ear') || ff == 'oe') {
+        return targetLower.contains('over-ear');
+      }
+      return false; // unknown
+    }).toList();
   }
 
   Widget _buildKnob(String label, double value, ValueChanged<double> onChanged) {
@@ -49,6 +94,10 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final active = widget.eqState.activeHeadphone;
+    final filteredTargets = _getFilteredTargets();
+    final bool hasHeadphone = active != null;
+
     return Container(
       height: 120,
       padding: const EdgeInsets.all(16),
@@ -62,17 +111,20 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
             children: [
               const Text('Target', style: TextStyle(color: Colors.white70)),
               const SizedBox(height: 8),
-              DropdownButton<String>(
-                value: selectedTarget,
-                dropdownColor: const Color(0xFF262B34),
-                items: targets.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => selectedTarget = val);
-                    widget.eqState.loadTarget(val);
-                  }
-                },
-              ),
+              if (!hasHeadphone || filteredTargets.isEmpty)
+                const Text('No valid targets', style: TextStyle(color: Colors.white38))
+              else
+                DropdownButton<String>(
+                  value: selectedTarget,
+                  dropdownColor: const Color(0xFF262B34),
+                  items: filteredTargets.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => selectedTarget = val);
+                      widget.eqState.loadTarget(val);
+                    }
+                  },
+                ),
             ],
           ),
           const SizedBox(width: 32),

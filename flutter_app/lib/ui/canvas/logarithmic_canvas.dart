@@ -168,93 +168,114 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
         }
         return KeyEventResult.ignored;
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final height = constraints.maxHeight;
+      child: Stack(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final height = constraints.maxHeight;
 
-          return Listener(
-            onPointerSignal: (pointerSignal) {
-              if (pointerSignal is PointerScrollEvent) {
-                final hoverIndex = _findNodeAt(pointerSignal.localPosition, width, height);
-                if (hoverIndex != null) {
-                  final node = widget.eqState.nodes[hoverIndex];
-                  final scrollDelta = pointerSignal.scrollDelta.dy;
-                  if (scrollDelta > 0) {
-                    node.q = (node.q - 0.1).clamp(0.1, 10.0);
-                  } else {
-                    node.q = (node.q + 0.1).clamp(0.1, 10.0);
+              return Listener(
+                onPointerSignal: (pointerSignal) {
+                  if (pointerSignal is PointerScrollEvent) {
+                    final hoverIndex = _findNodeAt(pointerSignal.localPosition, width, height);
+                    if (hoverIndex != null) {
+                      final node = widget.eqState.nodes[hoverIndex];
+                      final scrollDelta = pointerSignal.scrollDelta.dy;
+                      if (scrollDelta > 0) {
+                        node.q = (node.q - 0.1).clamp(0.1, 10.0);
+                      } else {
+                        node.q = (node.q + 0.1).clamp(0.1, 10.0);
+                      }
+                      widget.eqState.triggerUpdate();
+                    }
                   }
-                  widget.eqState.triggerUpdate();
-                }
-              }
-            },
-            child: GestureDetector(
-              onSecondaryTapUp: (details) {
-                final freq = _xToFreq(details.localPosition.dx, width);
-                final gain = _yToGain(details.localPosition.dy, height);
-                widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
-                _focusNode.requestFocus();
-              },
-              onDoubleTapDown: (details) {
-                final idx = _findNodeAt(details.localPosition, width, height);
-                if (idx == null) {
-                  final freq = _xToFreq(details.localPosition.dx, width);
-                  final gain = _yToGain(details.localPosition.dy, height);
-                  widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
-                  _focusNode.requestFocus();
-                }
-              },
-              onTapDown: (details) {
-                final idx = _findNodeAt(details.localPosition, width, height);
-                widget.eqState.selectNode(idx);
-                if (idx != null) {
-                  _focusNode.requestFocus();
-                }
-              },
-              onPanStart: (details) {
-                final idx = _findNodeAt(details.localPosition, width, height);
-                if (idx != null) {
-                  widget.eqState.selectNode(idx);
-                  _focusNode.requestFocus();
-                }
-              },
-              onPanUpdate: (details) {
-                final selectedNodeIndex = widget.eqState.selectedIndex;
-                if (selectedNodeIndex != null) {
-                  final node = widget.eqState.nodes[selectedNodeIndex];
-                  final currentX = _freqToX(node.freq, width);
-                  final currentY = _gainToY(node.gain, height);
+                },
+                child: GestureDetector(
+                  onSecondaryTapUp: (details) {
+                    final freq = _xToFreq(details.localPosition.dx, width);
+                    final gain = _yToGain(details.localPosition.dy, height);
+                    widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
+                    _focusNode.requestFocus();
+                  },
+                  onDoubleTapDown: (details) {
+                    final idx = _findNodeAt(details.localPosition, width, height);
+                    if (idx == null) {
+                      final freq = _xToFreq(details.localPosition.dx, width);
+                      final gain = _yToGain(details.localPosition.dy, height);
+                      widget.eqState.addNode(EqNode(freq: freq, gain: gain, q: 0.707));
+                      _focusNode.requestFocus();
+                    }
+                  },
+                  onTapDown: (details) {
+                    final idx = _findNodeAt(details.localPosition, width, height);
+                    widget.eqState.selectNode(idx);
+                    if (idx != null) {
+                      _focusNode.requestFocus();
+                    }
+                  },
+                  onPanStart: (details) {
+                    final idx = _findNodeAt(details.localPosition, width, height);
+                    if (idx != null) {
+                      widget.eqState.selectNode(idx);
+                      _focusNode.requestFocus();
+                    }
+                  },
+                  onPanUpdate: (details) {
+                    final selectedNodeIndex = widget.eqState.selectedIndex;
+                    if (selectedNodeIndex != null) {
+                      final node = widget.eqState.nodes[selectedNodeIndex];
+                      final currentX = _freqToX(node.freq, width);
+                      final currentY = _gainToY(node.gain, height);
 
-                  final newX = currentX + details.delta.dx;
-                  final newY = currentY + details.delta.dy;
+                      final newX = currentX + details.delta.dx;
+                      final newY = currentY + details.delta.dy;
 
-                  node.freq = _xToFreq(newX, width).clamp(minFreq, maxFreq);
-                  node.gain = _yToGain(newY, height).clamp(minDb, maxDb);
-                  
-                  widget.eqState.triggerUpdate();
-                }
-              },
-              child: Container(
-                color: const Color(0xFF0D0F12),
-                child: CustomPaint(
-                  painter: _LogarithmicGridPainter(
-                    responseCurve: _responseCurve,
-                    targetCurve: widget.eqState.targetCurve,
-                    headphoneCurve: widget.eqState.headphoneCurve,
-                    nodes: widget.eqState.nodes,
-                    selectedNodeIndex: widget.eqState.selectedIndex,
-                    minFreq: minFreq,
-                    maxFreq: maxFreq,
-                    minDb: minDb,
-                    maxDb: maxDb,
+                      node.freq = _xToFreq(newX, width).clamp(minFreq, maxFreq);
+                      node.gain = _yToGain(newY, height).clamp(minDb, maxDb);
+                      
+                      widget.eqState.triggerUpdate();
+                    }
+                  },
+                  child: Container(
+                    color: const Color(0xFF0D0F12),
+                    child: CustomPaint(
+                      painter: _LogarithmicGridPainter(
+                        responseCurve: _responseCurve,
+                        targetCurve: widget.eqState.targetCurve,
+                        headphoneCurve: widget.eqState.headphoneCurve,
+                        nodes: widget.eqState.nodes,
+                        selectedNodeIndex: widget.eqState.selectedIndex,
+                        normalizeToTarget: widget.eqState.normalizeToTarget,
+                        minFreq: minFreq,
+                        maxFreq: maxFreq,
+                        minDb: minDb,
+                        maxDb: maxDb,
+                      ),
+                      size: Size.infinite,
+                    ),
                   ),
-                  size: Size.infinite,
                 ),
+              );
+            },
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Tooltip(
+              message: 'Normalize to Target (Flat Target Curve)',
+              child: IconButton(
+                icon: Icon(
+                  widget.eqState.normalizeToTarget ? Icons.horizontal_rule : Icons.show_chart,
+                  color: widget.eqState.normalizeToTarget ? Colors.greenAccent : Colors.white,
+                ),
+                onPressed: () {
+                  widget.eqState.toggleNormalize();
+                },
               ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -266,6 +287,7 @@ class _LogarithmicGridPainter extends CustomPainter {
   final List<Point> headphoneCurve;
   final List<EqNode> nodes;
   final int? selectedNodeIndex;
+  final bool normalizeToTarget;
   
   final double minFreq;
   final double maxFreq;
@@ -283,11 +305,30 @@ class _LogarithmicGridPainter extends CustomPainter {
     required this.headphoneCurve,
     required this.nodes,
     required this.selectedNodeIndex,
+    required this.normalizeToTarget,
     required this.minFreq,
     required this.maxFreq,
     required this.minDb,
     required this.maxDb,
   });
+
+  double _getTargetGain(double freq) {
+    if (targetCurve.isEmpty) return 0.0;
+    if (freq <= targetCurve.first.x) return targetCurve.first.y;
+    if (freq >= targetCurve.last.x) return targetCurve.last.y;
+    
+    for (int i = 0; i < targetCurve.length - 1; i++) {
+      if (freq >= targetCurve[i].x && freq <= targetCurve[i+1].x) {
+        final x0 = targetCurve[i].x;
+        final y0 = targetCurve[i].y;
+        final x1 = targetCurve[i+1].x;
+        final y1 = targetCurve[i+1].y;
+        if (x1 == x0) return y0;
+        return y0 + (y1 - y0) * (freq - x0) / (x1 - x0);
+      }
+    }
+    return 0.0;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -433,7 +474,12 @@ class _LogarithmicGridPainter extends CustomPainter {
       final normalizedX = (logF - minLog) / logRange;
       final x = normalizedX * size.width;
 
-      final db = point.y.clamp(minDb, maxDb);
+      double db = point.y;
+      if (normalizeToTarget) {
+        db -= _getTargetGain(point.x);
+      }
+      db = db.clamp(minDb, maxDb);
+
       final normalizedY = 1.0 - ((db - minDb) / (maxDb - minDb));
       final y = normalizedY * size.height;
 
@@ -470,7 +516,12 @@ class _LogarithmicGridPainter extends CustomPainter {
       final normalizedX = (logF - minLog) / logRange;
       final x = normalizedX * size.width;
 
-      final db = point.y.clamp(minDb, maxDb);
+      double db = point.y;
+      if (normalizeToTarget) {
+        db -= _getTargetGain(point.x); // will be 0
+      }
+      db = db.clamp(minDb, maxDb);
+
       final normalizedY = 1.0 - ((db - minDb) / (maxDb - minDb));
       final y = normalizedY * size.height;
 
@@ -525,7 +576,12 @@ class _LogarithmicGridPainter extends CustomPainter {
       final normalizedX = (logF - minLog) / logRange;
       final x = normalizedX * size.width;
 
-      final db = point.y.clamp(minDb, maxDb);
+      double db = point.y;
+      if (normalizeToTarget) {
+        db -= _getTargetGain(point.x);
+      }
+      db = db.clamp(minDb, maxDb);
+      
       final normalizedY = 1.0 - ((db - minDb) / (maxDb - minDb));
       final y = normalizedY * size.height;
 

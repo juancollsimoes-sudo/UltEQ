@@ -22,7 +22,6 @@ class _SidebarState extends State<Sidebar> {
   }
 
   void _loadModels() {
-    // Note: in a real app, dbPath should be provided dynamically
     _allModelsCache = getHeadphoneModels(dbPath: 'ulteq.db');
   }
 
@@ -37,9 +36,7 @@ class _SidebarState extends State<Sidebar> {
     );
     
     if (selectedModel != null) {
-      if (selectedModel.filePath != null) {
-        widget.eqState.loadHeadphone(selectedModel.filePath!);
-      }
+      widget.eqState.loadHeadphone(selectedModel);
       setState(() {
         _models.add(selectedModel);
         _activeIndex = _models.length - 1;
@@ -71,86 +68,6 @@ class _SidebarState extends State<Sidebar> {
     if (result != null) {
       await _showModelSelectionDialog(result);
     }
-  }
-
-  Future<void> _showAudioConfigDialog() async {
-    // Fetch devices
-    final devices = getAudioDevices();
-    String? selectedDevice = devices.isNotEmpty ? devices.first : null;
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Audio Config (PipeWire)'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Select Output Device:'),
-                  if (devices.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('No devices found.', style: TextStyle(color: Colors.red)),
-                    )
-                  else
-                    DropdownButton<String>(
-                      isExpanded: true,
-                      value: selectedDevice,
-                      items: devices.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                      onChanged: (val) {
-                        setDialogState(() {
-                          selectedDevice = val;
-                        });
-                      },
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-                ElevatedButton(
-                  onPressed: selectedDevice == null ? null : () {
-                    // Convert nodes to ActiveFilter list
-                    final filters = widget.eqState.nodes.map((node) {
-                      FilterType ft;
-                      switch (node.type) {
-                        case EqFilterType.peaking:
-                          ft = FilterType.peaking;
-                          break;
-                        case EqFilterType.lowShelf:
-                          ft = FilterType.lowShelf;
-                          break;
-                        case EqFilterType.highShelf:
-                          ft = FilterType.highShelf;
-                          break;
-                      }
-                      return ActiveFilter(
-                        filterType: ft,
-                        freq: node.freq,
-                        gain: node.gain,
-                        q: node.q,
-                      );
-                    }).toList();
-
-                    applyEqToDevice(deviceName: selectedDevice!, filters: filters);
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('EQ Applied to $selectedDevice!')),
-                    );
-                  },
-                  child: const Text('Apply EQ'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -192,7 +109,7 @@ class _SidebarState extends State<Sidebar> {
                           _models.removeAt(index);
                           if (_activeIndex == index) {
                             _activeIndex = null;
-                            // Optionally clear headphone in eqState, but we'll leave as is
+                            widget.eqState.clearHeadphone();
                           } else if (_activeIndex != null && _activeIndex! > index) {
                             _activeIndex = _activeIndex! - 1;
                           }
@@ -201,26 +118,18 @@ class _SidebarState extends State<Sidebar> {
                     ),
                     onTap: () {
                       setState(() {
-                        _activeIndex = index;
+                        if (_activeIndex == index) {
+                          _activeIndex = null;
+                          widget.eqState.clearHeadphone();
+                        } else {
+                          _activeIndex = index;
+                          widget.eqState.loadHeadphone(model);
+                        }
                       });
-                      if (model.filePath != null) {
-                        widget.eqState.loadHeadphone(model.filePath!);
-                      }
                     },
                   ),
                 );
               },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.speaker),
-                label: const Text('Audio Config'),
-                onPressed: _showAudioConfigDialog,
-              ),
             ),
           ),
         ],

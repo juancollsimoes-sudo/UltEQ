@@ -6,6 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `interpolate_points`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
+
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
 
@@ -43,6 +46,30 @@ void applyEqToDevice({
 }) => RustLib.instance.api.crateApiSimpleApplyEqToDevice(
   deviceName: deviceName,
   filters: filters,
+);
+
+List<ActiveFilter> generateAutoeq({
+  required List<Point> headphone,
+  required List<Point> target,
+  required BigInt bands,
+}) => RustLib.instance.api.crateApiSimpleGenerateAutoeq(
+  headphone: headphone,
+  target: target,
+  bands: bands,
+);
+
+List<Point> modifyTarget({
+  required List<Point> baseTarget,
+  required double tilt,
+  required double bass,
+  required double treble,
+  required double earGain,
+}) => RustLib.instance.api.crateApiSimpleModifyTarget(
+  baseTarget: baseTarget,
+  tilt: tilt,
+  bass: bass,
+  treble: treble,
+  earGain: earGain,
 );
 
 class ActiveFilter {

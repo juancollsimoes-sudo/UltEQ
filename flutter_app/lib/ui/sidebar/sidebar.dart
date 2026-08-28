@@ -13,6 +13,7 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   final List<HeadphoneModel> _models = [];
   List<HeadphoneModel> _allModelsCache = [];
+  int? _activeIndex;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _SidebarState extends State<Sidebar> {
       }
       setState(() {
         _models.add(selectedModel);
+        _activeIndex = _models.length - 1;
       });
     }
   }
@@ -71,6 +73,86 @@ class _SidebarState extends State<Sidebar> {
     }
   }
 
+  Future<void> _showAudioConfigDialog() async {
+    // Fetch devices
+    final devices = getAudioDevices();
+    String? selectedDevice = devices.isNotEmpty ? devices.first : null;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Audio Config (PipeWire)'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Select Output Device:'),
+                  if (devices.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text('No devices found.', style: TextStyle(color: Colors.red)),
+                    )
+                  else
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: selectedDevice,
+                      items: devices.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedDevice = val;
+                        });
+                      },
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedDevice == null ? null : () {
+                    // Convert nodes to ActiveFilter list
+                    final filters = widget.eqState.nodes.map((node) {
+                      FilterType ft;
+                      switch (node.type) {
+                        case EqFilterType.peaking:
+                          ft = FilterType.peaking;
+                          break;
+                        case EqFilterType.lowShelf:
+                          ft = FilterType.lowShelf;
+                          break;
+                        case EqFilterType.highShelf:
+                          ft = FilterType.highShelf;
+                          break;
+                      }
+                      return ActiveFilter(
+                        filterType: ft,
+                        freq: node.freq,
+                        gain: node.gain,
+                        q: node.q,
+                      );
+                    }).toList();
+
+                    applyEqToDevice(deviceName: selectedDevice!, filters: filters);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('EQ Applied to $selectedDevice!')),
+                    );
+                  },
+                  child: const Text('Apply EQ'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -96,17 +178,49 @@ class _SidebarState extends State<Sidebar> {
               itemCount: _models.length,
               itemBuilder: (context, index) {
                 final model = _models[index];
-                return ListTile(
-                  title: Text('${model.brand} ${model.model}'),
-                  subtitle: Text('Type: ${model.formFactor ?? "N/A"}\nRig: ${model.rig ?? "Unknown"}'),
-                  isThreeLine: true,
-                  onTap: () {
-                    if (model.filePath != null) {
-                      widget.eqState.loadHeadphone(model.filePath!);
-                    }
-                  },
+                final isActive = _activeIndex == index;
+                return Container(
+                  color: isActive ? Colors.white24 : Colors.transparent,
+                  child: ListTile(
+                    title: Text('${model.brand} ${model.model}'),
+                    subtitle: Text('Type: ${model.formFactor ?? "N/A"}\nRig: ${model.rig ?? "Unknown"}'),
+                    isThreeLine: true,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () {
+                        setState(() {
+                          _models.removeAt(index);
+                          if (_activeIndex == index) {
+                            _activeIndex = null;
+                            // Optionally clear headphone in eqState, but we'll leave as is
+                          } else if (_activeIndex != null && _activeIndex! > index) {
+                            _activeIndex = _activeIndex! - 1;
+                          }
+                        });
+                      },
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _activeIndex = index;
+                      });
+                      if (model.filePath != null) {
+                        widget.eqState.loadHeadphone(model.filePath!);
+                      }
+                    },
+                  ),
                 );
               },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.speaker),
+                label: const Text('Audio Config'),
+                onPressed: _showAudioConfigDialog,
+              ),
             ),
           ),
         ],

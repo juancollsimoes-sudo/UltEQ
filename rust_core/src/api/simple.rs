@@ -201,3 +201,107 @@ pub fn get_headphone_curve(file_path: String) -> Vec<Point> {
     
     handle.join().unwrap_or_default()
 }
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_audio_devices() -> Vec<String> {
+    let mut devices = Vec::new();
+    if let Ok(output) = std::process::Command::new("pactl")
+        .args(&["list", "sinks", "short"])
+        .output() {
+        let text = String::from_utf8_lossy(&output.stdout);
+        for line in text.lines() {
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 2 {
+                devices.push(parts[1].to_string());
+            }
+        }
+    }
+    devices
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn apply_eq_to_device(device_name: String, filters: Vec<ActiveFilter>) {
+    use std::fs::File;
+    use std::io::Write;
+    use std::process::Command;
+
+    // Kill any existing instance
+    let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
+    
+    let config_path = "/tmp/ulteq_eq.conf";
+    
+    let mut nodes = String::new();
+    let mut links = String::new();
+    
+    for (i, filter) in filters.iter().enumerate() {
+        let label = match filter.filter_type {
+            FilterType::Peaking => "bq_peaking",
+            FilterType::LowShelf => "bq_lowshelf",
+            FilterType::HighShelf => "bq_highshelf",
+        };
+        
+        nodes.push_str(&format!(r#"
+                    {{
+                        type = builtin
+                        name = eq_band_{}
+                        label = {}
+                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                    
+        if i > 0 {
+            links.push_str(&format!(r#"
+                    {{ output = "eq_band_{}:Out" input = "eq_band_{}:In" }}"#, i, i + 1));
+        }
+    }
+    
+    let config_content = format!(r#"
+context.spa-libs = {{
+    audio.convert.* = audioconvert/libspa-audioconvert
+    support.*       = support/libspa-support
+}}
+context.modules = [
+    {{ name = libpipewire-module-rt flags = [ ifexists nofail ] }}
+    {{ name = libpipewire-module-protocol-native }}
+    {{ name = libpipewire-module-client-node }}
+    {{ name = libpipewire-module-adapter }}
+    {{ name = libpipewire-module-filter-chain
+        args = {{
+            node.description = "UltEQ Effect"
+            media.name       = "UltEQ Effect"
+            filter.graph = {{
+                nodes = [{}
+                ]
+                links = [{}
+                ]
+            }}
+            audio.channels = 2
+            audio.position = [ FL FR ]
+            capture.props = {{
+                node.name = "effect_input.ulteq"
+                media.class = Audio/Sink
+            }}
+            playback.props = {{
+                node.name = "effect_output.ulteq"
+                node.target = "{}"
+            }}
+        }}
+    }}
+]
+"#, nodes, links, device_name);
+
+    if let Ok(mut file) = File::create(config_path) {
+        let _ = file.write_all(config_content.as_bytes());
+    }
+    
+    // Launch as background process
+    Command::new("pipewire")
+        .arg("-c")
+        .arg(config_path)
+        .spawn()
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to start PipeWire EQ: {}", e);
+            // Return dummy child so it typechecks if we wanted to
+            // For now, spawn returns Result<Child, Error>. We just log error.
+            panic!("Failed to start PipeWire EQ: {}", e);
+        });
+}

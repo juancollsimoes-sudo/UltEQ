@@ -48,13 +48,6 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   }
 
   void _updateResponseCurve() {
-    if (widget.eqState.nodes.isEmpty) {
-      setState(() {
-        _responseCurve = [];
-      });
-      return;
-    }
-
     final filters = widget.eqState.nodes.map((node) {
       FilterType rType = FilterType.peaking;
       if (node.type == EqFilterType.lowShelf) rType = FilterType.lowShelf;
@@ -62,8 +55,45 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
       return ActiveFilter(filterType: rType, freq: node.freq, gain: node.gain, q: node.q);
     }).toList();
 
+    List<Point> biquadPoints = [];
+    try {
+      biquadPoints = calculateBiquadResponse(filters: filters);
+    } catch (e) {
+      // Ignored
+    }
+
+    if (biquadPoints.isEmpty) {
+      for (int i = 0; i < 200; i++) {
+        double f = 20.0 * math.pow(1000.0, i / 199.0);
+        biquadPoints.add(Point(x: f, y: 0.0));
+      }
+    }
+
+    double getHeadphoneGain(double freq) {
+      final hpCurve = widget.eqState.headphoneCurve;
+      if (hpCurve.isEmpty) return 0.0;
+      if (freq <= hpCurve.first.x) return hpCurve.first.y;
+      if (freq >= hpCurve.last.x) return hpCurve.last.y;
+      
+      for (int i = 0; i < hpCurve.length - 1; i++) {
+        if (freq >= hpCurve[i].x && freq <= hpCurve[i+1].x) {
+          final x0 = hpCurve[i].x;
+          final y0 = hpCurve[i].y;
+          final x1 = hpCurve[i+1].x;
+          final y1 = hpCurve[i+1].y;
+          if (x1 == x0) return y0;
+          return y0 + (y1 - y0) * (freq - x0) / (x1 - x0);
+        }
+      }
+      return 0.0;
+    }
+
+    final combinedCurve = biquadPoints.map((bp) {
+      return Point(x: bp.x, y: bp.y + getHeadphoneGain(bp.x));
+    }).toList();
+
     setState(() {
-      _responseCurve = calculateBiquadResponse(filters: filters);
+      _responseCurve = combinedCurve;
     });
   }
 
@@ -390,7 +420,7 @@ class _LogarithmicGridPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = curveColor
-      ..strokeWidth = 2.0
+      ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke;
 
     final path = Path();
@@ -426,7 +456,7 @@ class _LogarithmicGridPainter extends CustomPainter {
     final logRange = maxLog - minLog;
 
     final paint = Paint()
-      ..color = targetColor
+      ..color = Colors.grey
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
@@ -452,11 +482,25 @@ class _LogarithmicGridPainter extends CustomPainter {
       }
     }
 
-    // Instead of using a complex path_drawing, we can draw short segments if we wanted, 
-    // but the requirement said "puedes usar un shader o simplemente pintarla con un color 
-    // distinto semi-transparente como Colors.white54 para que se distinga".
-    // I'll just draw it as a solid line with Colors.white54.
-    canvas.drawPath(path, paint);
+    // Dibujar punteado (dashed)
+    final pathMetrics = path.computeMetrics();
+    final dashedPath = Path();
+    const dashWidth = 5.0;
+    const dashSpace = 5.0;
+
+    for (final metric in pathMetrics) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final double end = distance + dashWidth;
+        dashedPath.addPath(
+          metric.extractPath(distance, end),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    canvas.drawPath(dashedPath, paint);
   }
 
   void _drawHeadphoneCurve(Canvas canvas, Size size) {
@@ -468,7 +512,7 @@ class _LogarithmicGridPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = headphoneColor
-      ..strokeWidth = 2.0
+      ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
     final path = Path();

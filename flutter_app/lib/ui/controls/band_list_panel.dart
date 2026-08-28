@@ -41,8 +41,8 @@ class BandListPanel extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Text('Band ${index + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 16),
+                    Text('B${index + 1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 4),
                     _buildTextField(
                       label: 'Freq',
                       value: node.freq,
@@ -51,7 +51,7 @@ class BandListPanel extends StatelessWidget {
                         eqState.triggerUpdate();
                       },
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildTextField(
                       label: 'Gain',
                       value: node.gain,
@@ -60,7 +60,7 @@ class BandListPanel extends StatelessWidget {
                         eqState.triggerUpdate();
                       },
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildTextField(
                       label: 'Q',
                       value: node.q,
@@ -69,7 +69,7 @@ class BandListPanel extends StatelessWidget {
                         eqState.triggerUpdate();
                       },
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     _buildDropdown(
                       value: node.type,
                       onChanged: (newType) {
@@ -81,7 +81,7 @@ class BandListPanel extends StatelessWidget {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.delete, size: 18, color: Colors.redAccent),
+                      icon: const Icon(Icons.delete, size: 16, color: Colors.redAccent),
                       onPressed: () {
                         eqState.removeNode(index);
                       },
@@ -117,12 +117,13 @@ class BandListPanel extends StatelessWidget {
     required Function(EqFilterType?) onChanged,
   }) {
     return SizedBox(
-      height: 32,
+      height: 28,
       child: DropdownButton<EqFilterType>(
         value: value,
         dropdownColor: const Color(0xFF16191E),
-        style: const TextStyle(fontSize: 12, color: Colors.white),
+        style: const TextStyle(fontSize: 10, color: Colors.white),
         underline: Container(height: 1, color: Colors.white24),
+        isDense: true,
         items: const [
           DropdownMenuItem(value: EqFilterType.peaking, child: Text('PK')),
           DropdownMenuItem(value: EqFilterType.lowShelf, child: Text('LS')),
@@ -185,16 +186,16 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 50,
-      height: 32,
+      width: 44,
+      height: 28,
       child: TextField(
         controller: _controller,
-        style: const TextStyle(fontSize: 12),
+        style: const TextStyle(fontSize: 10),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
           labelText: widget.label,
-          labelStyle: const TextStyle(fontSize: 10, color: Colors.white70),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+          labelStyle: const TextStyle(fontSize: 9, color: Colors.white70),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
           border: const OutlineInputBorder(),
           isDense: true,
         ),

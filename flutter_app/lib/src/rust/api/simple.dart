@@ -34,6 +34,17 @@ List<Point> getTargetCurve({
 List<Point> getHeadphoneCurve({required String filePath}) =>
     RustLib.instance.api.crateApiSimpleGetHeadphoneCurve(filePath: filePath);
 
+List<String> getAudioDevices() =>
+    RustLib.instance.api.crateApiSimpleGetAudioDevices();
+
+void applyEqToDevice({
+  required String deviceName,
+  required List<ActiveFilter> filters,
+}) => RustLib.instance.api.crateApiSimpleApplyEqToDevice(
+  deviceName: deviceName,
+  filters: filters,
+);
+
 class ActiveFilter {
   final FilterType filterType;
   final double freq;

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../src/rust/api/simple.dart';
+import '../../models/eq_state.dart';
 
 class Sidebar extends StatefulWidget {
-  const Sidebar({super.key});
+  final EqState eqState;
+  const Sidebar({super.key, required this.eqState});
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -34,6 +36,9 @@ class _SidebarState extends State<Sidebar> {
     );
     
     if (selectedModel != null) {
+      if (selectedModel.filePath != null) {
+        widget.eqState.loadHeadphone(selectedModel.filePath!);
+      }
       setState(() {
         _models.add(selectedModel);
       });
@@ -49,11 +54,11 @@ class _SidebarState extends State<Sidebar> {
           content: const Text('Select type:'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, 'In-Ear'),
+              onPressed: () => Navigator.pop(context, 'in-ear'),
               child: const Text('In-Ear (IE)'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, 'Over-Ear'),
+              onPressed: () => Navigator.pop(context, 'over-ear'),
               child: const Text('Over-Ear (OE)'),
             ),
           ],
@@ -95,6 +100,11 @@ class _SidebarState extends State<Sidebar> {
                   title: Text('${model.brand} ${model.model}'),
                   subtitle: Text('Type: ${model.formFactor ?? "N/A"}\nRig: ${model.rig ?? "Unknown"}'),
                   isThreeLine: true,
+                  onTap: () {
+                    if (model.filePath != null) {
+                      widget.eqState.loadHeadphone(model.filePath!);
+                    }
+                  },
                 );
               },
             ),
@@ -125,6 +135,19 @@ class _ModelSelectionDialogState extends State<_ModelSelectionDialog> {
       return text.contains(_searchQuery.toLowerCase());
     }).toList();
 
+    filtered.sort((a, b) => (a.rig ?? 'Unknown').compareTo(b.rig ?? 'Unknown'));
+
+    final listItems = [];
+    String? currentRig;
+    for (final m in filtered) {
+      final rig = m.rig ?? 'Unknown';
+      if (rig != currentRig) {
+        listItems.add(rig);
+        currentRig = rig;
+      }
+      listItems.add(m);
+    }
+
     return AlertDialog(
       title: Text('Select ${widget.type} Headphone'),
       content: SizedBox(
@@ -146,9 +169,17 @@ class _ModelSelectionDialogState extends State<_ModelSelectionDialog> {
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
-                itemCount: filtered.length,
+                itemCount: listItems.length,
                 itemBuilder: (context, index) {
-                  final m = filtered[index];
+                  final item = listItems[index];
+                  if (item is String) {
+                    return Container(
+                      color: Colors.white10,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(item, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan)),
+                    );
+                  }
+                  final m = item as HeadphoneModel;
                   return ListTile(
                     title: Text('${m.brand} ${m.model}'),
                     subtitle: Text('Rig: ${m.rig ?? "Unknown"}'),

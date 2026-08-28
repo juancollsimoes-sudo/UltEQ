@@ -25,9 +25,16 @@ class EqState extends ChangeNotifier {
   List<EqNode> nodes = [EqNode(freq: 1000.0, gain: 0.0, q: 0.707)];
   int? selectedIndex;
   List<Point> targetCurve = [];
+  List<Point> headphoneCurve = [];
 
   void loadTarget(String targetName) {
     targetCurve = getTargetCurve(dbPath: 'ulteq.db', targetName: targetName);
+    notifyListeners();
+  }
+
+  Future<void> loadHeadphone(String filePath) async {
+    // getHeadphoneCurve from FFI is synchronous in this bridge
+    headphoneCurve = getHeadphoneCurve(filePath: filePath);
     notifyListeners();
   }
 

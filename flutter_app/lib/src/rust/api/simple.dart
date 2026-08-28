@@ -31,6 +31,9 @@ List<Point> getTargetCurve({
   targetName: targetName,
 );
 
+List<Point> getHeadphoneCurve({required String filePath}) =>
+    RustLib.instance.api.crateApiSimpleGetHeadphoneCurve(filePath: filePath);
+
 class ActiveFilter {
   final FilterType filterType;
   final double freq;

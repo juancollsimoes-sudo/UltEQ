@@ -150,7 +150,7 @@ pub fn get_target_curve(db_path: String, target_name: String) -> Vec<Point> {
     
     let mut points = Vec::new();
     if let Ok(conn) = Connection::open(&db_path) {
-        if let Ok(mut stmt) = conn.prepare("SELECT spl_blob FROM targets WHERE name = ?") {
+        if let Ok(mut stmt) = conn.prepare("SELECT points_blob FROM targets WHERE name = ?") {
             if let Ok(mut rows) = stmt.query([&target_name]) {
                 if let Ok(Some(row)) = rows.next() {
                     if let Ok(blob) = row.get::<_, Vec<u8>>(0) {
@@ -165,4 +165,39 @@ pub fn get_target_curve(db_path: String, target_name: String) -> Vec<Point> {
         }
     }
     points
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_headphone_curve(file_path: String) -> Vec<Point> {
+    let url = format!("https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/measurements/{}", file_path.replace(" ", "%20"));
+    
+    // We must block on the async fetch since this is a sync FFI function
+    let handle = std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut points = Vec::new();
+            if let Ok(client) = reqwest::Client::builder().user_agent("UltEQ").build() {
+                if let Ok(response) = client.get(&url).send().await {
+                    if let Ok(text) = response.text().await {
+                        let mut rdr = csv::ReaderBuilder::new().flexible(true).from_reader(text.as_bytes());
+                        if let Ok(headers) = rdr.headers() {
+                            let freq_idx = headers.iter().position(|h| h == "frequency").unwrap_or(0);
+                            let raw_idx = headers.iter().position(|h| h == "raw").unwrap_or(1);
+                            
+                            for result in rdr.records() {
+                                if let Ok(record) = result {
+                                    let frequency = record.get(freq_idx).unwrap_or("0.0").parse::<f32>().unwrap_or(0.0);
+                                    let raw = record.get(raw_idx).unwrap_or("0.0").parse::<f32>().unwrap_or(0.0);
+                                    points.push(Point { x: frequency, y: raw });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            points
+        })
+    });
+    
+    handle.join().unwrap_or_default()
 }

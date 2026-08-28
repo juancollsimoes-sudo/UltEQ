@@ -185,7 +185,7 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 60,
+      width: 50,
       height: 32,
       child: TextField(
         controller: _controller,

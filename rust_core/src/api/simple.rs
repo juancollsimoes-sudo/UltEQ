@@ -346,24 +346,34 @@ pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) 
         (f, gain)
     }).collect();
     
-    for _ in 0..bands {
+    // Distribute bands evenly across logarithmic spectrum up to 6000Hz
+    let search_min: f32 = 20.0;
+    let search_max: f32 = 6000.0;
+    
+    for b in 0..bands {
+        // Calculate frequency bounds for this specific band segment
+        let band_min_f = search_min * (search_max / search_min).powf(b as f32 / bands as f32);
+        let band_max_f = search_min * (search_max / search_min).powf((b + 1) as f32 / bands as f32);
+        
         let mut max_idx = 0;
         let mut max_err_abs = -1.0;
         
-        for (i, &(_, err)) in error_curve.iter().enumerate() {
-            if err.abs() > max_err_abs {
-                max_err_abs = err.abs();
-                max_idx = i;
+        // Find the maximum error IN THIS SEGMENT only
+        for (i, &(f, err)) in error_curve.iter().enumerate() {
+            if f >= band_min_f && f <= band_max_f {
+                if err.abs() > max_err_abs {
+                    max_err_abs = err.abs();
+                    max_idx = i;
+                }
             }
         }
         
-        if max_err_abs < 0.1 {
-            break;
+        if max_err_abs < 0.2 {
+            continue;
         }
         
         let center_f = error_curve[max_idx].0;
         let gain = error_curve[max_idx].1;
-        
         let target_err = gain / 2.0;
         
         let mut idx_left = max_idx;
@@ -391,9 +401,9 @@ pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) 
         if f1 < f2 {
             bw_octaves = (f2 / f1).log2();
         }
-        if bw_octaves <= 0.0 {
-            bw_octaves = 1.0;
-        }
+        // Clamp bandwidth to avoid insanely narrow or wide filters
+        if bw_octaves <= 0.1 { bw_octaves = 0.1; }
+        if bw_octaves >= 3.0 { bw_octaves = 3.0; }
         
         let two_pow_bw = 2.0_f32.powf(bw_octaves);
         let mut q = two_pow_bw.sqrt() / (two_pow_bw - 1.0);
@@ -409,8 +419,8 @@ pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) 
         filters.push(filter);
         
         let response = calculate_biquad_response(vec![filter]);
-        for (f, err) in error_curve.iter_mut() {
-            let filter_gain = interpolate_points(&response, *f);
+        for (f_val, err) in error_curve.iter_mut() {
+            let filter_gain = interpolate_points(&response, *f_val);
             *err -= filter_gain;
         }
     }

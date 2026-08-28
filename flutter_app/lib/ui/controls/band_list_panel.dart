@@ -152,6 +152,7 @@ class _DebouncedNumericField extends StatefulWidget {
 
 class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
   double _lastValidValue = 0;
 
   @override
@@ -159,6 +160,7 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
     super.initState();
     _lastValidValue = widget.initialValue;
     _controller = TextEditingController(text: _format(widget.initialValue));
+    _focusNode = FocusNode();
   }
 
   @override
@@ -167,7 +169,7 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
     if (widget.initialValue != _lastValidValue) {
       _lastValidValue = widget.initialValue;
       final newText = _format(widget.initialValue);
-      if (_controller.text != newText && !FocusScope.of(context).hasFocus) {
+      if (_controller.text != newText && !_focusNode.hasFocus) {
          _controller.text = newText;
       }
     }
@@ -175,6 +177,7 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -190,6 +193,7 @@ class _DebouncedNumericFieldState extends State<_DebouncedNumericField> {
       height: 28,
       child: TextField(
         controller: _controller,
+        focusNode: _focusNode,
         style: const TextStyle(fontSize: 10),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(

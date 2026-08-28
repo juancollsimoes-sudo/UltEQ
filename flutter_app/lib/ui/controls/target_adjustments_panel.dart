@@ -135,10 +135,10 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                Expanded(child: _buildKnob('Tilt', tilt, (v) => setState(() => tilt = v))),
-                Expanded(child: _buildKnob('Bass Boost', bassBoost, (v) => setState(() => bassBoost = v))),
-                Expanded(child: _buildKnob('Ear Gain', earGain, (v) => setState(() => earGain = v))),
-                Expanded(child: _buildKnob('Treble', treble, (v) => setState(() => treble = v))),
+                Expanded(child: _buildKnob('Tilt', widget.eqState.tilt, (v) => widget.eqState.updateModifiers(newTilt: v))),
+                Expanded(child: _buildKnob('Bass Boost', widget.eqState.bass, (v) => widget.eqState.updateModifiers(newBass: v))),
+                Expanded(child: _buildKnob('Ear Gain', widget.eqState.earGain, (v) => widget.eqState.updateModifiers(newEarGain: v))),
+                Expanded(child: _buildKnob('Treble', widget.eqState.treble, (v) => widget.eqState.updateModifiers(newTreble: v))),
               ],
             ),
           ),

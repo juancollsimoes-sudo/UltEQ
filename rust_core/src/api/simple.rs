@@ -332,50 +332,30 @@ fn interpolate_points(points: &[Point], f: f32) -> f32 {
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) -> Vec<ActiveFilter> {
-    let mut freqs = Vec::new();
-    let min_f: f32 = 20.0;
-    let max_f: f32 = 20000.0;
-    let steps = 200;
-    for i in 0..=steps {
-        freqs.push(min_f * (max_f / min_f).powf(i as f32 / steps as f32));
-    }
-    
-    let mut eq_req: Vec<f32> = freqs.iter().map(|&f| {
-        interpolate_points(&target, f) - interpolate_points(&headphone, f)
-    }).collect();
-    
     let mut filters = Vec::new();
     
-    for _ in 0..bands {
-        let mut max_abs = 0.0;
-        let mut max_idx = 0;
-        for (i, &err) in eq_req.iter().enumerate() {
-            if err.abs() > max_abs {
-                max_abs = err.abs();
-                max_idx = i;
-            }
-        }
+    // Generate logarithmic spaced center frequencies (e.g. 10 bands like a Graphic EQ)
+    let min_f: f32 = 31.5;
+    let max_f: f32 = 16000.0;
+    
+    for i in 0..bands {
+        let frac = if bands > 1 { i as f32 / (bands - 1) as f32 } else { 0.5 };
+        let center_f = min_f * (max_f / min_f).powf(frac);
         
-        if max_abs < 0.1 { break; }
+        let hp_val = interpolate_points(&headphone, center_f);
+        let tg_val = interpolate_points(&target, center_f);
         
-        let f = freqs[max_idx];
-        let gain = eq_req[max_idx];
-        let q = 1.41;
+        let gain = tg_val - hp_val;
         
-        let filter = ActiveFilter {
+        // Q=1.41 represents roughly 1 octave bandwidth, perfect for 10-band GEQ
+        let q = if bands == 10 { 1.41 } else { 1.41 * (bands as f32 / 10.0) };
+        
+        filters.push(ActiveFilter {
             filter_type: FilterType::Peaking,
-            freq: f,
+            freq: center_f,
             gain,
             q,
-        };
-        
-        let response = calculate_biquad_response(vec![filter]);
-        
-        for (i, p) in response.iter().enumerate() {
-            eq_req[i] -= p.y;
-        }
-        
-        filters.push(filter);
+        });
     }
     
     filters

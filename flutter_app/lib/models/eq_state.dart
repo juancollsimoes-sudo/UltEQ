@@ -30,14 +30,39 @@ class EqState extends ChangeNotifier {
   String? selectedOutputDevice;
   HeadphoneModel? activeHeadphone;
   bool normalizeToTarget = false;
+  
+  double tilt = 0.0;
+  double bass = 0.0;
+  double treble = 0.0;
+  double earGain = 0.0;
+  String? currentTargetName;
+  List<Point> baseTargetCurve = [];
 
   void toggleNormalize() {
     normalizeToTarget = !normalizeToTarget;
     notifyListeners();
   }
 
+  void updateModifiers({double? newTilt, double? newBass, double? newTreble, double? newEarGain}) {
+    if (newTilt != null) tilt = newTilt;
+    if (newBass != null) bass = newBass;
+    if (newTreble != null) treble = newTreble;
+    if (newEarGain != null) earGain = newEarGain;
+    _recalculateTarget();
+  }
+
   void loadTarget(String targetName) {
-    targetCurve = getTargetCurve(dbPath: 'ulteq.db', targetName: targetName);
+    currentTargetName = targetName;
+    baseTargetCurve = getTargetCurve(dbPath: 'ulteq.db', targetName: targetName);
+    _recalculateTarget();
+  }
+  
+  void _recalculateTarget() {
+    if (baseTargetCurve.isEmpty) {
+      targetCurve = [];
+    } else {
+      targetCurve = modifyTarget(baseTarget: baseTargetCurve, tilt: tilt, bass: bass, treble: treble, earGain: earGain);
+    }
     notifyListeners();
   }
 

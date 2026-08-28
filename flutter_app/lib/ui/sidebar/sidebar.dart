@@ -10,16 +10,34 @@ class Sidebar extends StatefulWidget {
 
 class _SidebarState extends State<Sidebar> {
   final List<HeadphoneModel> _models = [];
+  List<HeadphoneModel> _allModelsCache = [];
 
-  void _addModel(String type) {
-    setState(() {
-      final allModels = getModels();
-      final model = allModels.firstWhere(
-        (m) => m.modelType == type,
-        orElse: () => allModels.first,
-      );
-      _models.add(model);
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadModels();
+  }
+
+  void _loadModels() {
+    // Note: in a real app, dbPath should be provided dynamically
+    _allModelsCache = getHeadphoneModels(dbPath: 'ulteq.db');
+  }
+
+  Future<void> _showModelSelectionDialog(String type) async {
+    final filteredModels = _allModelsCache.where((m) => m.formFactor == type).toList();
+    
+    final selectedModel = await showDialog<HeadphoneModel>(
+      context: context,
+      builder: (context) {
+        return _ModelSelectionDialog(models: filteredModels, type: type);
+      }
+    );
+    
+    if (selectedModel != null) {
+      setState(() {
+        _models.add(selectedModel);
+      });
+    }
   }
 
   Future<void> _showAddDialog() async {
@@ -31,11 +49,11 @@ class _SidebarState extends State<Sidebar> {
           content: const Text('Select type:'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, 'IE'),
+              onPressed: () => Navigator.pop(context, 'In-Ear'),
               child: const Text('In-Ear (IE)'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, 'OE'),
+              onPressed: () => Navigator.pop(context, 'Over-Ear'),
               child: const Text('Over-Ear (OE)'),
             ),
           ],
@@ -44,7 +62,7 @@ class _SidebarState extends State<Sidebar> {
     );
 
     if (result != null) {
-      _addModel(result);
+      await _showModelSelectionDialog(result);
     }
   }
 
@@ -74,14 +92,75 @@ class _SidebarState extends State<Sidebar> {
               itemBuilder: (context, index) {
                 final model = _models[index];
                 return ListTile(
-                  title: Text(model.name),
-                  subtitle: Text('Target: ${model.defaultTarget}\nTool: ${model.tool}'),
+                  title: Text('${model.brand} ${model.model}'),
+                  subtitle: Text('Type: ${model.formFactor ?? "N/A"}\nRig: ${model.rig ?? "Unknown"}'),
                   isThreeLine: true,
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModelSelectionDialog extends StatefulWidget {
+  final List<HeadphoneModel> models;
+  final String type;
+
+  const _ModelSelectionDialog({required this.models, required this.type});
+
+  @override
+  State<_ModelSelectionDialog> createState() => _ModelSelectionDialogState();
+}
+
+class _ModelSelectionDialogState extends State<_ModelSelectionDialog> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.models.where((m) {
+      final text = '${m.brand} ${m.model}'.toLowerCase();
+      return text.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    return AlertDialog(
+      title: Text('Select ${widget.type} Headphone'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Search',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final m = filtered[index];
+                  return ListTile(
+                    title: Text('${m.brand} ${m.model}'),
+                    subtitle: Text('Rig: ${m.rig ?? "Unknown"}'),
+                    onTap: () {
+                      Navigator.pop(context, m);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -41,7 +41,7 @@ class _MainWorkspaceState extends State<MainWorkspace> {
                   children: [
                     // Left Side: Band List
                     Container(
-                      width: 250,
+                      width: 350,
                       decoration: const BoxDecoration(
                         border: Border(right: BorderSide(color: Colors.white24, width: 1)),
                       ),

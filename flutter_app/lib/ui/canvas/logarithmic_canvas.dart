@@ -26,7 +26,7 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   @override
   void initState() {
     super.initState();
-    widget.eqState.addListener(_onEqStateChanged);
+    widget.eqState.addListener(_updateResponseCurve);
     _updateResponseCurve();
   }
 
@@ -34,21 +34,17 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
   void didUpdateWidget(covariant LogarithmicCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.eqState != widget.eqState) {
-      oldWidget.eqState.removeListener(_onEqStateChanged);
-      widget.eqState.addListener(_onEqStateChanged);
+      oldWidget.eqState.removeListener(_updateResponseCurve);
+      widget.eqState.addListener(_updateResponseCurve);
       _updateResponseCurve();
     }
   }
 
   @override
   void dispose() {
-    widget.eqState.removeListener(_onEqStateChanged);
+    widget.eqState.removeListener(_updateResponseCurve);
     _focusNode.dispose();
     super.dispose();
-  }
-
-  void _onEqStateChanged() {
-    _updateResponseCurve();
   }
 
   void _updateResponseCurve() {

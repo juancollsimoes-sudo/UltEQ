@@ -20,7 +20,7 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
   @override
   void initState() {
     super.initState();
-    targets = getTargets();
+    targets = getTargets(dbPath: 'ulteq.db');
     if (targets.isNotEmpty) {
       selectedTarget = targets.first;
     }

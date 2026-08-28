@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../src/rust/api/simple.dart';
 
+import '../../models/eq_state.dart';
+
 class TargetAdjustmentsPanel extends StatefulWidget {
-  const TargetAdjustmentsPanel({super.key});
+  final EqState eqState;
+  
+  const TargetAdjustmentsPanel({super.key, required this.eqState});
 
   @override
   State<TargetAdjustmentsPanel> createState() => _TargetAdjustmentsPanelState();
@@ -23,6 +27,7 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
     targets = getTargets(dbPath: 'ulteq.db');
     if (targets.isNotEmpty) {
       selectedTarget = targets.first;
+      widget.eqState.loadTarget(selectedTarget!);
     }
   }
 
@@ -62,7 +67,10 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> {
                 dropdownColor: const Color(0xFF262B34),
                 items: targets.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                 onChanged: (val) {
-                  if (val != null) setState(() => selectedTarget = val);
+                  if (val != null) {
+                    setState(() => selectedTarget = val);
+                    widget.eqState.loadTarget(val);
+                  }
                 },
               ),
             ],

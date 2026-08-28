@@ -20,6 +20,17 @@ List<HeadphoneModel> getHeadphoneModels({required String dbPath}) =>
 List<String> getTargets({required String dbPath}) =>
     RustLib.instance.api.crateApiSimpleGetTargets(dbPath: dbPath);
 
+Future<void> syncDatabase({required String dbPath}) =>
+    RustLib.instance.api.crateApiSimpleSyncDatabase(dbPath: dbPath);
+
+List<Point> getTargetCurve({
+  required String dbPath,
+  required String targetName,
+}) => RustLib.instance.api.crateApiSimpleGetTargetCurve(
+  dbPath: dbPath,
+  targetName: targetName,
+);
+
 class ActiveFilter {
   final FilterType filterType;
   final double freq;

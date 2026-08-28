@@ -210,6 +210,7 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
                 child: CustomPaint(
                   painter: _LogarithmicGridPainter(
                     responseCurve: _responseCurve,
+                    targetCurve: widget.eqState.targetCurve,
                     nodes: widget.eqState.nodes,
                     selectedNodeIndex: widget.eqState.selectedIndex,
                     minFreq: minFreq,
@@ -230,6 +231,7 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> {
 
 class _LogarithmicGridPainter extends CustomPainter {
   final List<Point> responseCurve;
+  final List<Point> targetCurve;
   final List<EqNode> nodes;
   final int? selectedNodeIndex;
   
@@ -240,9 +242,11 @@ class _LogarithmicGridPainter extends CustomPainter {
 
   final Color gridColor = const Color(0xFF262B34);
   final Color curveColor = const Color(0xFF00FF00); // Color de la curva
+  final Color targetColor = Colors.white54;
 
   _LogarithmicGridPainter({
     required this.responseCurve,
+    required this.targetCurve,
     required this.nodes,
     required this.selectedNodeIndex,
     required this.minFreq,
@@ -254,6 +258,7 @@ class _LogarithmicGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     _drawGrid(canvas, size);
+    _drawTargetCurve(canvas, size);
     _drawCurve(canvas, size);
     _drawNodes(canvas, size);
   }
@@ -405,6 +410,47 @@ class _LogarithmicGridPainter extends CustomPainter {
       }
     }
 
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawTargetCurve(Canvas canvas, Size size) {
+    if (targetCurve.isEmpty) return;
+
+    final minLog = math.log(minFreq) / math.ln10;
+    final maxLog = math.log(maxFreq) / math.ln10;
+    final logRange = maxLog - minLog;
+
+    final paint = Paint()
+      ..color = targetColor
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    bool first = true;
+
+    for (final point in targetCurve) {
+      if (point.x < minFreq || point.x > maxFreq) continue;
+
+      final logF = math.log(point.x) / math.ln10;
+      final normalizedX = (logF - minLog) / logRange;
+      final x = normalizedX * size.width;
+
+      final db = point.y.clamp(minDb, maxDb);
+      final normalizedY = 1.0 - ((db - minDb) / (maxDb - minDb));
+      final y = normalizedY * size.height;
+
+      if (first) {
+        path.moveTo(x, y);
+        first = false;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    // Instead of using a complex path_drawing, we can draw short segments if we wanted, 
+    // but the requirement said "puedes usar un shader o simplemente pintarla con un color 
+    // distinto semi-transparente como Colors.white54 para que se distinga".
+    // I'll just draw it as a solid line with Colors.white54.
     canvas.drawPath(path, paint);
   }
 

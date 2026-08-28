@@ -136,3 +136,33 @@ pub fn get_targets(db_path: String) -> Vec<String> {
     
     targets
 }
+
+#[flutter_rust_bridge::frb]
+pub async fn sync_database(db_path: String) -> Result<(), String> {
+    crate::fetcher::initialize_autoeq_metadata(&db_path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_target_curve(db_path: String, target_name: String) -> Vec<Point> {
+    use rusqlite::Connection;
+    
+    let mut points = Vec::new();
+    if let Ok(conn) = Connection::open(&db_path) {
+        if let Ok(mut stmt) = conn.prepare("SELECT spl_blob FROM targets WHERE name = ?") {
+            if let Ok(mut rows) = stmt.query([&target_name]) {
+                if let Ok(Some(row)) = rows.next() {
+                    if let Ok(blob) = row.get::<_, Vec<u8>>(0) {
+                        if let Ok(parsed_points) = serde_json::from_slice::<Vec<crate::fetcher::MeasurementPoint>>(&blob) {
+                            for p in parsed_points {
+                                points.push(Point { x: p.frequency, y: p.raw });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    points
+}

@@ -55,7 +55,7 @@ class _MainWorkspaceState extends State<MainWorkspace> {
                 ),
               ),
               // Bottom: Target Adjustments Panel
-              const TargetAdjustmentsPanel(),
+              TargetAdjustmentsPanel(eqState: _eqState),
             ],
           ),
         ),

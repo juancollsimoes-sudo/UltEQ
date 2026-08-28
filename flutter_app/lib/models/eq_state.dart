@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../src/rust/api/simple.dart';
 
 enum EqFilterType {
   peaking,
@@ -23,6 +24,12 @@ class EqNode {
 class EqState extends ChangeNotifier {
   List<EqNode> nodes = [EqNode(freq: 1000.0, gain: 0.0, q: 0.707)];
   int? selectedIndex;
+  List<Point> targetCurve = [];
+
+  void loadTarget(String targetName) {
+    targetCurve = getTargetCurve(dbPath: 'ulteq.db', targetName: targetName);
+    notifyListeners();
+  }
 
   void addNode(EqNode node) {
     nodes.add(node);

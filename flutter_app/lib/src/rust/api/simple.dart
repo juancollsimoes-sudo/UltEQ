@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `interpolate_points`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
@@ -34,11 +34,49 @@ List<Point> getTargetCurve({
   targetName: targetName,
 );
 
+DualMeasurementResult parseCsvMeasurement({required String csvContent}) =>
+    RustLib.instance.api.crateApiSimpleParseCsvMeasurement(
+      csvContent: csvContent,
+    );
+
+DualMeasurementResult getDualHeadphoneCurve({required String filePath}) =>
+    RustLib.instance.api.crateApiSimpleGetDualHeadphoneCurve(
+      filePath: filePath,
+    );
+
 List<Point> getHeadphoneCurve({required String filePath}) =>
     RustLib.instance.api.crateApiSimpleGetHeadphoneCurve(filePath: filePath);
 
+DualMeasurementResult simulateDualChannelImbalance({
+  required List<Point> baseCurve,
+  required int seed,
+}) => RustLib.instance.api.crateApiSimpleSimulateDualChannelImbalance(
+  baseCurve: baseCurve,
+  seed: seed,
+);
+
+ChannelMatchResult matchRawChannels({
+  required List<Point> rawL,
+  required List<Point> rawR,
+  required BigInt maxBands,
+}) => RustLib.instance.api.crateApiSimpleMatchRawChannels(
+  rawL: rawL,
+  rawR: rawR,
+  maxBands: maxBands,
+);
+
 List<String> getAudioDevices() =>
     RustLib.instance.api.crateApiSimpleGetAudioDevices();
+
+void applyStereoEqToDevice({
+  required String deviceName,
+  required List<ActiveFilter> leftFilters,
+  required List<ActiveFilter> rightFilters,
+}) => RustLib.instance.api.crateApiSimpleApplyStereoEqToDevice(
+  deviceName: deviceName,
+  leftFilters: leftFilters,
+  rightFilters: rightFilters,
+);
 
 void applyEqToDevice({
   required String deviceName,
@@ -98,6 +136,84 @@ class ActiveFilter {
           freq == other.freq &&
           gain == other.gain &&
           q == other.q;
+}
+
+class ChannelMatchResult {
+  final List<ActiveFilter> leftFilters;
+  final List<ActiveFilter> rightFilters;
+  final List<Point> matchedL;
+  final List<Point> matchedR;
+  final double residualImbalanceDb;
+
+  const ChannelMatchResult({
+    required this.leftFilters,
+    required this.rightFilters,
+    required this.matchedL,
+    required this.matchedR,
+    required this.residualImbalanceDb,
+  });
+
+  @override
+  int get hashCode =>
+      leftFilters.hashCode ^
+      rightFilters.hashCode ^
+      matchedL.hashCode ^
+      matchedR.hashCode ^
+      residualImbalanceDb.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChannelMatchResult &&
+          runtimeType == other.runtimeType &&
+          leftFilters == other.leftFilters &&
+          rightFilters == other.rightFilters &&
+          matchedL == other.matchedL &&
+          matchedR == other.matchedR &&
+          residualImbalanceDb == other.residualImbalanceDb;
+}
+
+class DualMeasurementResult {
+  final bool isDualChannel;
+  final List<Point> rawL;
+  final List<Point> rawR;
+  final List<Point> rawMid;
+  final double avgImbalanceDb;
+  final double maxImbalanceDb;
+  final double maxImbalanceFreq;
+
+  const DualMeasurementResult({
+    required this.isDualChannel,
+    required this.rawL,
+    required this.rawR,
+    required this.rawMid,
+    required this.avgImbalanceDb,
+    required this.maxImbalanceDb,
+    required this.maxImbalanceFreq,
+  });
+
+  @override
+  int get hashCode =>
+      isDualChannel.hashCode ^
+      rawL.hashCode ^
+      rawR.hashCode ^
+      rawMid.hashCode ^
+      avgImbalanceDb.hashCode ^
+      maxImbalanceDb.hashCode ^
+      maxImbalanceFreq.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DualMeasurementResult &&
+          runtimeType == other.runtimeType &&
+          isDualChannel == other.isDualChannel &&
+          rawL == other.rawL &&
+          rawR == other.rawR &&
+          rawMid == other.rawMid &&
+          avgImbalanceDb == other.avgImbalanceDb &&
+          maxImbalanceDb == other.maxImbalanceDb &&
+          maxImbalanceFreq == other.maxImbalanceFreq;
 }
 
 enum FilterType { peaking, lowShelf, highShelf }

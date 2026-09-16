@@ -1,3 +1,9 @@
+pub mod autoeq;
+pub use autoeq::{
+    AutoEqConfig, AutoEqEngine, AutoEqError, BiquadFilter, BiquadFilterType, EarphoneMeasurement,
+    EqProfile, TargetCurve, TargetPreset,
+};
+
 use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type};
 
 pub struct DspFilter {

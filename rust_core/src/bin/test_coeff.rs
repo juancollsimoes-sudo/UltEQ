@@ -1,4 +1,4 @@
-use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type};
+use biquad::{Coefficients, ToHertz, Type};
 fn main() {
     let fs = 48000.hz();
     let f0 = 1000.hz();

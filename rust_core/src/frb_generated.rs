@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1213177790;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -917610741;
 
 // Section: executor
 
@@ -75,6 +75,46 @@ fn wire__crate__api__simple__apply_eq_to_device_impl(
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Ok::<_, ()>({
                     crate::api::simple::apply_eq_to_device(api_device_name, api_filters);
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__apply_stereo_eq_to_device_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "apply_stereo_eq_to_device",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_device_name = <String>::sse_decode(&mut deserializer);
+            let api_left_filters =
+                <Vec<crate::api::simple::ActiveFilter>>::sse_decode(&mut deserializer);
+            let api_right_filters =
+                <Vec<crate::api::simple::ActiveFilter>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>({
+                    crate::api::simple::apply_stereo_eq_to_device(
+                        api_device_name,
+                        api_left_filters,
+                        api_right_filters,
+                    );
                 })?;
                 std::result::Result::Ok(output_ok)
             })())
@@ -173,6 +213,37 @@ fn wire__crate__api__simple__get_audio_devices_impl(
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Ok::<_, ()>(crate::api::simple::get_audio_devices())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__get_dual_headphone_curve_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_dual_headphone_curve",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_file_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::simple::get_dual_headphone_curve(api_file_path))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -367,6 +438,42 @@ fn wire__crate__api__simple__init_app_impl(
         },
     )
 }
+fn wire__crate__api__simple__match_raw_channels_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "match_raw_channels",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_raw_l = <Vec<crate::api::simple::Point>>::sse_decode(&mut deserializer);
+            let api_raw_r = <Vec<crate::api::simple::Point>>::sse_decode(&mut deserializer);
+            let api_max_bands = <usize>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::simple::match_raw_channels(
+                    api_raw_l,
+                    api_raw_r,
+                    api_max_bands,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__simple__modify_target_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -401,6 +508,71 @@ fn wire__crate__api__simple__modify_target_impl(
                     api_bass,
                     api_treble,
                     api_ear_gain,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__parse_csv_measurement_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "parse_csv_measurement",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_csv_content = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::simple::parse_csv_measurement(api_csv_content))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__simple__simulate_dual_channel_imbalance_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "simulate_dual_channel_imbalance",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_base_curve = <Vec<crate::api::simple::Point>>::sse_decode(&mut deserializer);
+            let api__seed = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::simple::simulate_dual_channel_imbalance(
+                    api_base_curve,
+                    api__seed,
                 ))?;
                 std::result::Result::Ok(output_ok)
             })())
@@ -466,6 +638,54 @@ impl SseDecode for crate::api::simple::ActiveFilter {
             freq: var_freq,
             gain: var_gain,
             q: var_q,
+        };
+    }
+}
+
+impl SseDecode for bool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::api::simple::ChannelMatchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_leftFilters = <Vec<crate::api::simple::ActiveFilter>>::sse_decode(deserializer);
+        let mut var_rightFilters =
+            <Vec<crate::api::simple::ActiveFilter>>::sse_decode(deserializer);
+        let mut var_matchedL = <Vec<crate::api::simple::Point>>::sse_decode(deserializer);
+        let mut var_matchedR = <Vec<crate::api::simple::Point>>::sse_decode(deserializer);
+        let mut var_residualImbalanceDb = <f32>::sse_decode(deserializer);
+        return crate::api::simple::ChannelMatchResult {
+            left_filters: var_leftFilters,
+            right_filters: var_rightFilters,
+            matched_l: var_matchedL,
+            matched_r: var_matchedR,
+            residual_imbalance_db: var_residualImbalanceDb,
+        };
+    }
+}
+
+impl SseDecode for crate::api::simple::DualMeasurementResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_isDualChannel = <bool>::sse_decode(deserializer);
+        let mut var_rawL = <Vec<crate::api::simple::Point>>::sse_decode(deserializer);
+        let mut var_rawR = <Vec<crate::api::simple::Point>>::sse_decode(deserializer);
+        let mut var_rawMid = <Vec<crate::api::simple::Point>>::sse_decode(deserializer);
+        let mut var_avgImbalanceDb = <f32>::sse_decode(deserializer);
+        let mut var_maxImbalanceDb = <f32>::sse_decode(deserializer);
+        let mut var_maxImbalanceFreq = <f32>::sse_decode(deserializer);
+        return crate::api::simple::DualMeasurementResult {
+            is_dual_channel: var_isDualChannel,
+            raw_l: var_rawL,
+            raw_r: var_rawR,
+            raw_mid: var_rawMid,
+            avg_imbalance_db: var_avgImbalanceDb,
+            max_imbalance_db: var_maxImbalanceDb,
+            max_imbalance_freq: var_maxImbalanceFreq,
         };
     }
 }
@@ -597,6 +817,13 @@ impl SseDecode for crate::api::simple::Point {
     }
 }
 
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -616,13 +843,6 @@ impl SseDecode for usize {
     }
 }
 
-impl SseDecode for bool {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_u8().unwrap() != 0
-    }
-}
-
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -632,8 +852,8 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        10 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__simple__sync_database_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__simple__sync_database_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -647,15 +867,24 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__simple__apply_eq_to_device_impl(ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__simple__calculate_biquad_response_impl(ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__simple__generate_autoeq_impl(ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__simple__get_audio_devices_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__simple__get_headphone_curve_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__simple__get_headphone_models_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__simple__get_target_curve_impl(ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__simple__get_targets_impl(ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__simple__modify_target_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__simple__apply_stereo_eq_to_device_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__simple__calculate_biquad_response_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__simple__generate_autoeq_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__simple__get_audio_devices_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__simple__get_dual_headphone_curve_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__simple__get_headphone_curve_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__simple__get_headphone_models_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__simple__get_target_curve_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__simple__get_targets_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__simple__match_raw_channels_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__simple__modify_target_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__simple__parse_csv_measurement_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__simple__simulate_dual_channel_imbalance_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         _ => unreachable!(),
     }
 }
@@ -682,6 +911,56 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::ActiveFilter>
     for crate::api::simple::ActiveFilter
 {
     fn into_into_dart(self) -> crate::api::simple::ActiveFilter {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::ChannelMatchResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.left_filters.into_into_dart().into_dart(),
+            self.right_filters.into_into_dart().into_dart(),
+            self.matched_l.into_into_dart().into_dart(),
+            self.matched_r.into_into_dart().into_dart(),
+            self.residual_imbalance_db.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::ChannelMatchResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::ChannelMatchResult>
+    for crate::api::simple::ChannelMatchResult
+{
+    fn into_into_dart(self) -> crate::api::simple::ChannelMatchResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::DualMeasurementResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.is_dual_channel.into_into_dart().into_dart(),
+            self.raw_l.into_into_dart().into_dart(),
+            self.raw_r.into_into_dart().into_dart(),
+            self.raw_mid.into_into_dart().into_dart(),
+            self.avg_imbalance_db.into_into_dart().into_dart(),
+            self.max_imbalance_db.into_into_dart().into_dart(),
+            self.max_imbalance_freq.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::DualMeasurementResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::DualMeasurementResult>
+    for crate::api::simple::DualMeasurementResult
+{
+    fn into_into_dart(self) -> crate::api::simple::DualMeasurementResult {
         self
     }
 }
@@ -762,6 +1041,37 @@ impl SseEncode for crate::api::simple::ActiveFilter {
         <f32>::sse_encode(self.freq, serializer);
         <f32>::sse_encode(self.gain, serializer);
         <f32>::sse_encode(self.q, serializer);
+    }
+}
+
+impl SseEncode for bool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::simple::ChannelMatchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::simple::ActiveFilter>>::sse_encode(self.left_filters, serializer);
+        <Vec<crate::api::simple::ActiveFilter>>::sse_encode(self.right_filters, serializer);
+        <Vec<crate::api::simple::Point>>::sse_encode(self.matched_l, serializer);
+        <Vec<crate::api::simple::Point>>::sse_encode(self.matched_r, serializer);
+        <f32>::sse_encode(self.residual_imbalance_db, serializer);
+    }
+}
+
+impl SseEncode for crate::api::simple::DualMeasurementResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_dual_channel, serializer);
+        <Vec<crate::api::simple::Point>>::sse_encode(self.raw_l, serializer);
+        <Vec<crate::api::simple::Point>>::sse_encode(self.raw_r, serializer);
+        <Vec<crate::api::simple::Point>>::sse_encode(self.raw_mid, serializer);
+        <f32>::sse_encode(self.avg_imbalance_db, serializer);
+        <f32>::sse_encode(self.max_imbalance_db, serializer);
+        <f32>::sse_encode(self.max_imbalance_freq, serializer);
     }
 }
 
@@ -875,6 +1185,13 @@ impl SseEncode for crate::api::simple::Point {
     }
 }
 
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -894,13 +1211,6 @@ impl SseEncode for usize {
             .cursor
             .write_u64::<NativeEndian>(self as _)
             .unwrap();
-    }
-}
-
-impl SseEncode for bool {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_u8(self as _).unwrap();
     }
 }
 

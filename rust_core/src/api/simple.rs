@@ -9,25 +9,45 @@ pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FilterType {
     Peaking,
     LowShelf,
     HighShelf,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ActiveFilter {
     pub filter_type: FilterType,
     pub freq: f32,
     pub gain: f32,
     pub q: f32,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DualMeasurementResult {
+    pub is_dual_channel: bool,
+    pub raw_l: Vec<Point>,
+    pub raw_r: Vec<Point>,
+    pub raw_mid: Vec<Point>,
+    pub avg_imbalance_db: f32,
+    pub max_imbalance_db: f32,
+    pub max_imbalance_freq: f32,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ChannelMatchResult {
+    pub left_filters: Vec<ActiveFilter>,
+    pub right_filters: Vec<ActiveFilter>,
+    pub matched_l: Vec<Point>,
+    pub matched_r: Vec<Point>,
+    pub residual_imbalance_db: f32,
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -171,38 +191,291 @@ pub fn get_target_curve(db_path: String, target_name: String) -> Vec<Point> {
 }
 
 #[flutter_rust_bridge::frb(sync)]
-pub fn get_headphone_curve(file_path: String) -> Vec<Point> {
+pub fn parse_csv_measurement(csv_content: String) -> DualMeasurementResult {
+    let mut rdr = csv::ReaderBuilder::new()
+        .flexible(true)
+        .from_reader(csv_content.as_bytes());
+
+    let headers = match rdr.headers() {
+        Ok(h) => h.clone(),
+        Err(_) => {
+            return DualMeasurementResult {
+                is_dual_channel: false,
+                raw_l: Vec::new(),
+                raw_r: Vec::new(),
+                raw_mid: Vec::new(),
+                avg_imbalance_db: 0.0,
+                max_imbalance_db: 0.0,
+                max_imbalance_freq: 0.0,
+            };
+        }
+    };
+
+    let mut freq_idx: Option<usize> = None;
+    let mut left_idx: Option<usize> = None;
+    let mut right_idx: Option<usize> = None;
+    let mut raw_idx: Option<usize> = None;
+
+    for (i, h) in headers.iter().enumerate() {
+        let clean = h.trim().to_lowercase();
+        if clean == "frequency" || clean == "freq" || clean == "hz" || clean.contains("freq") {
+            freq_idx = Some(i);
+        } else if clean == "raw_l" || clean == "left" || clean == "spl_left" || clean == "spl l" || clean == "l" || clean == "raw (l)" || clean == "ch1" {
+            left_idx = Some(i);
+        } else if clean == "raw_r" || clean == "right" || clean == "spl_right" || clean == "spl r" || clean == "r" || clean == "raw (r)" || clean == "ch2" {
+            right_idx = Some(i);
+        } else if clean == "raw" || clean == "spl" || clean == "db" {
+            raw_idx = Some(i);
+        }
+    }
+
+    let f_idx = freq_idx.unwrap_or(0);
+    let mut pts_l = Vec::new();
+    let mut pts_r = Vec::new();
+    let mut pts_mid = Vec::new();
+
+    let has_stereo = left_idx.is_some() && right_idx.is_some();
+
+    for result in rdr.records() {
+        if let Ok(rec) = result {
+            let f = rec.get(f_idx).unwrap_or("0").trim().parse::<f32>().unwrap_or(0.0);
+            if f <= 0.0 || !f.is_finite() { continue; }
+
+            if has_stereo {
+                let l = rec.get(left_idx.unwrap()).unwrap_or("0").trim().parse::<f32>().unwrap_or(0.0);
+                let r = rec.get(right_idx.unwrap()).unwrap_or("0").trim().parse::<f32>().unwrap_or(0.0);
+                pts_l.push(Point { x: f, y: l });
+                pts_r.push(Point { x: f, y: r });
+                pts_mid.push(Point { x: f, y: (l + r) * 0.5 });
+            } else {
+                let r_idx = left_idx.or(raw_idx).unwrap_or(1);
+                let val = rec.get(r_idx).unwrap_or("0").trim().parse::<f32>().unwrap_or(0.0);
+                pts_l.push(Point { x: f, y: val });
+                pts_mid.push(Point { x: f, y: val });
+            }
+        }
+    }
+
+    pts_l.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+    pts_r.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+    pts_mid.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+
+    if has_stereo && !pts_l.is_empty() && pts_l.len() == pts_r.len() {
+        let mut sum_imb = 0.0;
+        let mut count = 0;
+        let mut max_imb = 0.0;
+        let mut max_freq = 0.0;
+
+        for (p_l, p_r) in pts_l.iter().zip(pts_r.iter()) {
+            if p_l.x >= 50.0 && p_l.x <= 8000.0 {
+                let diff = (p_l.y - p_r.y).abs();
+                sum_imb += diff;
+                count += 1;
+                if diff > max_imb {
+                    max_imb = diff;
+                    max_freq = p_l.x;
+                }
+            }
+        }
+
+        let avg_imb = if count > 0 { sum_imb / count as f32 } else { 0.0 };
+
+        DualMeasurementResult {
+            is_dual_channel: true,
+            raw_l: pts_l,
+            raw_r: pts_r,
+            raw_mid: pts_mid,
+            avg_imbalance_db: avg_imb,
+            max_imbalance_db: max_imb,
+            max_imbalance_freq: max_freq,
+        }
+    } else {
+        DualMeasurementResult {
+            is_dual_channel: false,
+            raw_l: pts_l,
+            raw_r: Vec::new(),
+            raw_mid: pts_mid,
+            avg_imbalance_db: 0.0,
+            max_imbalance_db: 0.0,
+            max_imbalance_freq: 0.0,
+        }
+    }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_dual_headphone_curve(file_path: String) -> DualMeasurementResult {
     let url = format!("https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/measurements/{}", file_path.replace(" ", "%20"));
     
-    // We must block on the async fetch since this is a sync FFI function
     let handle = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let mut points = Vec::new();
             if let Ok(client) = reqwest::Client::builder().user_agent("UltEQ").build() {
                 if let Ok(response) = client.get(&url).send().await {
                     if let Ok(text) = response.text().await {
-                        let mut rdr = csv::ReaderBuilder::new().flexible(true).from_reader(text.as_bytes());
-                        if let Ok(headers) = rdr.headers() {
-                            let freq_idx = headers.iter().position(|h| h == "frequency").unwrap_or(0);
-                            let raw_idx = headers.iter().position(|h| h == "raw").unwrap_or(1);
-                            
-                            for result in rdr.records() {
-                                if let Ok(record) = result {
-                                    let frequency = record.get(freq_idx).unwrap_or("0.0").parse::<f32>().unwrap_or(0.0);
-                                    let raw = record.get(raw_idx).unwrap_or("0.0").parse::<f32>().unwrap_or(0.0);
-                                    points.push(Point { x: frequency, y: raw });
-                                }
-                            }
-                        }
+                        return parse_csv_measurement(text);
                     }
                 }
             }
-            points
+            DualMeasurementResult {
+                is_dual_channel: false,
+                raw_l: Vec::new(),
+                raw_r: Vec::new(),
+                raw_mid: Vec::new(),
+                avg_imbalance_db: 0.0,
+                max_imbalance_db: 0.0,
+                max_imbalance_freq: 0.0,
+            }
         })
     });
-    
-    handle.join().unwrap_or_default()
+
+    handle.join().unwrap_or_else(|_| DualMeasurementResult {
+        is_dual_channel: false,
+        raw_l: Vec::new(),
+        raw_r: Vec::new(),
+        raw_mid: Vec::new(),
+        avg_imbalance_db: 0.0,
+        max_imbalance_db: 0.0,
+        max_imbalance_freq: 0.0,
+    })
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_headphone_curve(file_path: String) -> Vec<Point> {
+    let dual = get_dual_headphone_curve(file_path);
+    if !dual.raw_mid.is_empty() {
+        dual.raw_mid
+    } else {
+        dual.raw_l
+    }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn simulate_dual_channel_imbalance(base_curve: Vec<Point>, _seed: u32) -> DualMeasurementResult {
+    if base_curve.is_empty() {
+        return DualMeasurementResult {
+            is_dual_channel: false,
+            raw_l: Vec::new(),
+            raw_r: Vec::new(),
+            raw_mid: Vec::new(),
+            avg_imbalance_db: 0.0,
+            max_imbalance_db: 0.0,
+            max_imbalance_freq: 0.0,
+        };
+    }
+
+    let mut raw_l = Vec::with_capacity(base_curve.len());
+    let mut raw_r = Vec::with_capacity(base_curve.len());
+    let mut raw_mid = Vec::with_capacity(base_curve.len());
+
+    let mut sum_imb = 0.0;
+    let mut count = 0;
+    let mut max_imb = 0.0;
+    let mut max_freq = 0.0;
+
+    for p in &base_curve {
+        let f = p.x;
+        // Bell 1: 2400 Hz ear canal transition (+1.35 dB on L, -1.35 dB on R)
+        let log_dist1 = (f / 2400.0).ln() * 1.2;
+        let delta1 = 1.35 * (-0.5 * log_dist1 * log_dist1).exp();
+
+        // Bell 2: 4800 Hz (-1.1 dB on L, +1.1 dB on R)
+        let log_dist2 = (f / 4800.0).ln() * 1.8;
+        let delta2 = -1.10 * (-0.5 * log_dist2 * log_dist2).exp();
+
+        // Bell 3: 400 Hz gentle warm skew: +0.6 dB
+        let log_dist3 = (f / 400.0).ln() * 0.8;
+        let delta3 = 0.60 * (-0.5 * log_dist3 * log_dist3).exp();
+
+        let total_delta = delta1 + delta2 + delta3;
+
+        let y_l = p.y + total_delta;
+        let y_r = p.y - total_delta;
+        let y_m = p.y;
+
+        raw_l.push(Point { x: f, y: y_l });
+        raw_r.push(Point { x: f, y: y_r });
+        raw_mid.push(Point { x: f, y: y_m });
+
+        if f >= 50.0 && f <= 8000.0 {
+            let diff = (y_l - y_r).abs();
+            sum_imb += diff;
+            count += 1;
+            if diff > max_imb {
+                max_imb = diff;
+                max_freq = f;
+            }
+        }
+    }
+
+    let avg_imb = if count > 0 { sum_imb / count as f32 } else { 0.0 };
+
+    DualMeasurementResult {
+        is_dual_channel: true,
+        raw_l,
+        raw_r,
+        raw_mid,
+        avg_imbalance_db: avg_imb,
+        max_imbalance_db: max_imb,
+        max_imbalance_freq: max_freq,
+    }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn match_raw_channels(raw_l: Vec<Point>, raw_r: Vec<Point>, max_bands: usize) -> ChannelMatchResult {
+    if raw_l.is_empty() || raw_r.is_empty() {
+        return ChannelMatchResult {
+            left_filters: Vec::new(),
+            right_filters: Vec::new(),
+            matched_l: raw_l,
+            matched_r: raw_r,
+            residual_imbalance_db: 0.0,
+        };
+    }
+
+    let l_freqs: Vec<f64> = raw_l.iter().map(|p| p.x as f64).collect();
+    let l_dbs: Vec<f64> = raw_l.iter().map(|p| p.y as f64).collect();
+    let r_freqs: Vec<f64> = raw_r.iter().map(|p| p.x as f64).collect();
+    let r_dbs: Vec<f64> = raw_r.iter().map(|p| p.y as f64).collect();
+
+    let dsp_result = crate::dsp::autoeq::compute_symmetric_channel_match(
+        &l_freqs,
+        &l_dbs,
+        &r_freqs,
+        &r_dbs,
+        max_bands,
+    );
+
+    let left_filters: Vec<ActiveFilter> = dsp_result
+        .left_filters
+        .iter()
+        .map(|f| f.to_active_filter())
+        .collect();
+
+    let right_filters: Vec<ActiveFilter> = dsp_result
+        .right_filters
+        .iter()
+        .map(|f| f.to_active_filter())
+        .collect();
+
+    let matched_l: Vec<Point> = dsp_result
+        .matched_l
+        .into_iter()
+        .map(|(f, y)| Point { x: f as f32, y: y as f32 })
+        .collect();
+
+    let matched_r: Vec<Point> = dsp_result
+        .matched_r
+        .into_iter()
+        .map(|(f, y)| Point { x: f as f32, y: y as f32 })
+        .collect();
+
+    ChannelMatchResult {
+        left_filters,
+        right_filters,
+        matched_l,
+        matched_r,
+        residual_imbalance_db: dsp_result.residual_imbalance_db as f32,
+    }
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -223,7 +496,11 @@ pub fn get_audio_devices() -> Vec<String> {
 }
 
 #[flutter_rust_bridge::frb(sync)]
-pub fn apply_eq_to_device(device_name: String, filters: Vec<ActiveFilter>) {
+pub fn apply_stereo_eq_to_device(
+    device_name: String,
+    left_filters: Vec<ActiveFilter>,
+    right_filters: Vec<ActiveFilter>,
+) {
     use std::fs::File;
     use std::io::Write;
     use std::process::Command;
@@ -232,32 +509,113 @@ pub fn apply_eq_to_device(device_name: String, filters: Vec<ActiveFilter>) {
     let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
     
     let config_path = "/tmp/ulteq_eq.conf";
-    
-    let mut nodes = String::new();
-    let mut links = String::new();
-    
-    for (i, filter) in filters.iter().enumerate() {
-        let label = match filter.filter_type {
-            FilterType::Peaking => "bq_peaking",
-            FilterType::LowShelf => "bq_lowshelf",
-            FilterType::HighShelf => "bq_highshelf",
-        };
-        
-        nodes.push_str(&format!(r#"
+    let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
+
+    let config_content = if is_stereo_split {
+        let mut nodes = String::new();
+        let mut links = String::new();
+
+        for (i, filter) in left_filters.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "bq_peaking",
+                FilterType::LowShelf => "bq_lowshelf",
+                FilterType::HighShelf => "bq_highshelf",
+            };
+            nodes.push_str(&format!(r#"
+                    {{
+                        type = builtin
+                        name = eq_l_{}
+                        label = {}
+                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+            if i > 0 {
+                links.push_str(&format!(r#"
+                    {{ output = "eq_l_{}:Out" input = "eq_l_{}:In" }}"#, i, i + 1));
+            }
+        }
+
+        for (i, filter) in right_filters.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "bq_peaking",
+                FilterType::LowShelf => "bq_lowshelf",
+                FilterType::HighShelf => "bq_highshelf",
+            };
+            nodes.push_str(&format!(r#"
+                    {{
+                        type = builtin
+                        name = eq_r_{}
+                        label = {}
+                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+            if i > 0 {
+                links.push_str(&format!(r#"
+                    {{ output = "eq_r_{}:Out" input = "eq_r_{}:In" }}"#, i, i + 1));
+            }
+        }
+
+        let l_last = left_filters.len();
+        let r_last = right_filters.len();
+
+        format!(r#"
+context.spa-libs = {{
+    audio.convert.* = audioconvert/libspa-audioconvert
+    support.*       = support/libspa-support
+}}
+context.modules = [
+    {{ name = libpipewire-module-rt flags = [ ifexists nofail ] }}
+    {{ name = libpipewire-module-protocol-native }}
+    {{ name = libpipewire-module-client-node }}
+    {{ name = libpipewire-module-adapter }}
+    {{ name = libpipewire-module-filter-chain
+        args = {{
+            node.description = "UltEQ Stereo Calibrated Effect"
+            media.name       = "UltEQ Stereo Calibrated Effect"
+            filter.graph = {{
+                nodes = [{nodes}
+                ]
+                links = [{links}
+                ]
+                inputs  = [ "eq_l_1:In" "eq_r_1:In" ]
+                outputs = [ "eq_l_{l_last}:Out" "eq_r_{r_last}:Out" ]
+            }}
+            audio.channels = 2
+            audio.position = [ FL FR ]
+            capture.props = {{
+                node.name = "effect_input.ulteq"
+                media.class = Audio/Sink
+            }}
+            playback.props = {{
+                node.name = "effect_output.ulteq"
+                node.target = "{device_name}"
+            }}
+        }}
+    }}
+]
+"#)
+    } else {
+        let active = if !left_filters.is_empty() { &left_filters } else { &right_filters };
+        let mut nodes = String::new();
+        let mut links = String::new();
+        for (i, filter) in active.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "bq_peaking",
+                FilterType::LowShelf => "bq_lowshelf",
+                FilterType::HighShelf => "bq_highshelf",
+            };
+            nodes.push_str(&format!(r#"
                     {{
                         type = builtin
                         name = eq_band_{}
                         label = {}
                         control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
                     }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
-                    
-        if i > 0 {
-            links.push_str(&format!(r#"
+            if i > 0 {
+                links.push_str(&format!(r#"
                     {{ output = "eq_band_{}:Out" input = "eq_band_{}:In" }}"#, i, i + 1));
+            }
         }
-    }
-    
-    let config_content = format!(r#"
+
+        format!(r#"
 context.spa-libs = {{
     audio.convert.* = audioconvert/libspa-audioconvert
     support.*       = support/libspa-support
@@ -272,9 +630,9 @@ context.modules = [
             node.description = "UltEQ Effect"
             media.name       = "UltEQ Effect"
             filter.graph = {{
-                nodes = [{}
+                nodes = [{nodes}
                 ]
-                links = [{}
+                links = [{links}
                 ]
             }}
             audio.channels = 2
@@ -285,28 +643,31 @@ context.modules = [
             }}
             playback.props = {{
                 node.name = "effect_output.ulteq"
-                node.target = "{}"
+                node.target = "{device_name}"
             }}
         }}
     }}
 ]
-"#, nodes, links, device_name);
+"#)
+    };
 
     if let Ok(mut file) = File::create(config_path) {
         let _ = file.write_all(config_content.as_bytes());
     }
-    
-    // Launch as background process
+
     Command::new("pipewire")
         .arg("-c")
         .arg(config_path)
         .spawn()
         .unwrap_or_else(|e| {
             eprintln!("Failed to start PipeWire EQ: {}", e);
-            // Return dummy child so it typechecks if we wanted to
-            // For now, spawn returns Result<Child, Error>. We just log error.
             panic!("Failed to start PipeWire EQ: {}", e);
         });
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn apply_eq_to_device(device_name: String, filters: Vec<ActiveFilter>) {
+    apply_stereo_eq_to_device(device_name, filters, Vec::new())
 }
 
 fn interpolate_points(points: &[Point], f: f32) -> f32 {
@@ -332,100 +693,54 @@ fn interpolate_points(points: &[Point], f: f32) -> f32 {
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn generate_autoeq(headphone: Vec<Point>, target: Vec<Point>, bands: usize) -> Vec<ActiveFilter> {
-    let mut filters = Vec::new();
-    
-    let min_f: f32 = 20.0;
-    let max_f: f32 = 20000.0;
-    let steps = 200;
-    
-    let mut error_curve: Vec<(f32, f32)> = (0..=steps).map(|i| {
-        let f = min_f * (max_f / min_f).powf(i as f32 / steps as f32);
-        let hp_val = interpolate_points(&headphone, f);
-        let tg_val = interpolate_points(&target, f);
-        let gain = tg_val - hp_val;
-        (f, gain)
-    }).collect();
-    
-    // Distribute bands evenly across logarithmic spectrum up to 6000Hz
-    let search_min: f32 = 20.0;
-    let search_max: f32 = 6000.0;
-    
-    for b in 0..bands {
-        // Calculate frequency bounds for this specific band segment
-        let band_min_f = search_min * (search_max / search_min).powf(b as f32 / bands as f32);
-        let band_max_f = search_min * (search_max / search_min).powf((b + 1) as f32 / bands as f32);
-        
-        let mut max_idx = 0;
-        let mut max_err_abs = -1.0;
-        
-        // Find the maximum error IN THIS SEGMENT only
-        for (i, &(f, err)) in error_curve.iter().enumerate() {
-            if f >= band_min_f && f <= band_max_f {
-                if err.abs() > max_err_abs {
-                    max_err_abs = err.abs();
-                    max_idx = i;
-                }
-            }
-        }
-        
-        if max_err_abs < 0.2 {
-            continue;
-        }
-        
-        let center_f = error_curve[max_idx].0;
-        let gain = error_curve[max_idx].1;
-        let target_err = gain / 2.0;
-        
-        let mut idx_left = max_idx;
-        while idx_left > 0 {
-            let err = error_curve[idx_left].1;
-            if (gain >= 0.0 && err <= target_err) || (gain < 0.0 && err >= target_err) {
-                break;
-            }
-            idx_left -= 1;
-        }
-        
-        let mut idx_right = max_idx;
-        while idx_right < error_curve.len() - 1 {
-            let err = error_curve[idx_right].1;
-            if (gain >= 0.0 && err <= target_err) || (gain < 0.0 && err >= target_err) {
-                break;
-            }
-            idx_right += 1;
-        }
-        
-        let f1 = error_curve[idx_left].0;
-        let f2 = error_curve[idx_right].0;
-        
-        let mut bw_octaves = 1.0;
-        if f1 < f2 {
-            bw_octaves = (f2 / f1).log2();
-        }
-        // Clamp bandwidth to avoid insanely narrow or wide filters
-        if bw_octaves <= 0.1 { bw_octaves = 0.1; }
-        if bw_octaves >= 3.0 { bw_octaves = 3.0; }
-        
-        let two_pow_bw = 2.0_f32.powf(bw_octaves);
-        let mut q = two_pow_bw.sqrt() / (two_pow_bw - 1.0);
-        q = q.clamp(0.1, 10.0);
-        
-        let filter = ActiveFilter {
-            filter_type: FilterType::Peaking,
-            freq: center_f,
-            gain,
-            q,
-        };
-        
-        filters.push(filter);
-        
-        let response = calculate_biquad_response(vec![filter]);
-        for (f_val, err) in error_curve.iter_mut() {
-            let filter_gain = interpolate_points(&response, *f_val);
-            *err -= filter_gain;
-        }
+    use crate::dsp::autoeq::{AutoEqConfig, AutoEqEngine, EarphoneMeasurement, TargetCurve};
+
+    if headphone.is_empty() || target.is_empty() {
+        return Vec::new();
     }
-    
-    filters
+
+    let mut h_pts: Vec<(f64, f64)> = headphone
+        .iter()
+        .filter(|p| p.x > 0.0 && p.x.is_finite() && p.y.is_finite())
+        .map(|p| (p.x as f64, p.y as f64))
+        .collect();
+    h_pts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    h_pts.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-5);
+
+    let mut t_pts: Vec<(f64, f64)> = target
+        .iter()
+        .filter(|p| p.x > 0.0 && p.x.is_finite() && p.y.is_finite())
+        .map(|p| (p.x as f64, p.y as f64))
+        .collect();
+    t_pts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    t_pts.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-5);
+
+    if h_pts.len() < 2 || t_pts.len() < 2 {
+        return Vec::new();
+    }
+
+    let (h_freqs, h_dbs): (Vec<f64>, Vec<f64>) = h_pts.into_iter().unzip();
+    let (t_freqs, t_dbs): (Vec<f64>, Vec<f64>) = t_pts.into_iter().unzip();
+
+    let meas = match EarphoneMeasurement::new("AutoEq", "Headphone", h_freqs, h_dbs) {
+        Ok(m) => m,
+        Err(_) => return Vec::new(),
+    };
+
+    let targ = match TargetCurve::new("Target", t_freqs, t_dbs) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut config = AutoEqConfig::default();
+    config.max_peaking_filters = bands.clamp(1, 10);
+    config.min_freq = 35.0; // Clean bass threshold to eliminate sub-bass ripples
+
+    let engine = AutoEqEngine::new(config);
+    match engine.optimize(&meas, &targ) {
+        Ok(profile) => profile.to_active_filters(),
+        Err(_) => Vec::new(),
+    }
 }
 
 #[flutter_rust_bridge::frb(sync)]

@@ -52,13 +52,6 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" flutter_app\windows\installer\installer.iss
 
-      - name: Package Windows Artifacts
-        run: |
-          New-Item -ItemType Directory -Force -Path "release_assets"
-          Copy-Item -Path "flutter_app\build\windows\installer\UltEQ-Setup-v1.0.0-x64.exe" -Destination "release_assets\UltEQ-Setup-v1.0.0-x64.exe"
-          Copy-Item -Path "flutter_app\build\windows\x64\runner\Release\UltEQ.exe" -Destination "release_assets\UltEQ.exe"
-          Compress-Archive -Path "flutter_app\build\windows\x64\runner\Release\*" -DestinationPath "release_assets\UltEQ-v1.0.0-windows-x64-portable.zip"
-
       - name: Determine Tag
         id: vars
         shell: bash
@@ -69,6 +62,17 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Package Windows Artifacts
+        shell: bash
+        run: |
+          mkdir -p release_assets
+          TAG_VAL="${{ steps.vars.outputs.tag }}"
+          cp flutter_app/build/windows/installer/UltEQ-Setup-*-x64.exe "release_assets/UltEQ-Setup-${TAG_VAL}-x64.exe"
+          cp flutter_app/build/windows/x64/runner/Release/UltEQ.exe release_assets/UltEQ.exe
+          cd flutter_app/build/windows/x64/runner/Release
+          powershell -Command "Compress-Archive -Path * -DestinationPath ../../../../../release_assets/UltEQ-${TAG_VAL}-windows-x64-portable.zip"
+          cd ../../../../../
+
       - name: Publish Windows Release to GitHub
         uses: softprops/action-gh-release@v2
         with:
@@ -78,8 +82,8 @@ jobs:
             ## 🎧 UltEQ Release ${{ steps.vars.outputs.tag }}
 
             ### Windows Downloads:
-            - **[UltEQ-Setup-v1.0.0-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-Setup-v1.0.0-x64.exe)** — Complete Windows Installer (.exe)
-            - **[UltEQ-v1.0.0-windows-x64-portable.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-v1.0.0-windows-x64-portable.zip)** — Portable standalone zip package
+            - **[UltEQ-Setup-${{ steps.vars.outputs.tag }}-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-Setup-${{ steps.vars.outputs.tag }}-x64.exe)** — Complete Windows Installer (.exe)
+            - **[UltEQ-${{ steps.vars.outputs.tag }}-windows-x64-portable.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-${{ steps.vars.outputs.tag }}-windows-x64-portable.zip)** — Portable standalone zip package
             - **[UltEQ.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ.exe)** — Standalone executable
 
             ### Key Capabilities:
@@ -89,9 +93,9 @@ jobs:
             - 🎛️ **Audio Engines:** Native Equalizer APO on Windows and native PipeWire filter chains on Linux.
             - 📂 **Headphone & Target Database:** Embedded database featuring 6,800+ acoustic measurements.
           files: |
-            release_assets/UltEQ-Setup-v1.0.0-x64.exe
+            release_assets/UltEQ-Setup-*-x64.exe
             release_assets/UltEQ.exe
-            release_assets/UltEQ-v1.0.0-windows-x64-portable.zip
+            release_assets/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

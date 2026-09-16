@@ -541,19 +541,32 @@ pub fn apply_stereo_eq_to_device(
     {
         let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
         let mut apo_text = String::new();
-        apo_text.push_str("# UltEQ Equalizer APO Configuration\n");
-        apo_text.push_str("Preamp: 0.0 dB\n\n");
+        apo_text.push_str("# UltEQ Equalizer APO / Peace Configuration\n");
+        
+        let all_filters = if is_stereo_split {
+            left_filters.iter().chain(right_filters.iter()).collect::<Vec<_>>()
+        } else if !left_filters.is_empty() {
+            left_filters.iter().collect::<Vec<_>>()
+        } else {
+            right_filters.iter().collect::<Vec<_>>()
+        };
+
+        let max_gain = all_filters.iter()
+            .map(|f| f.gain)
+            .fold(0.0f32, |acc, g| if g > acc { g } else { acc });
+        let preamp = if max_gain > 0.0 { -max_gain } else { 0.0 };
+        apo_text.push_str(&format!("Preamp: {:.1} dB\n\n", preamp));
 
         if is_stereo_split {
             apo_text.push_str("Channel: L\n");
             for (i, filter) in left_filters.iter().enumerate() {
                 let label = match filter.filter_type {
                     FilterType::Peaking => "PK",
-                    FilterType::LowShelf => "LS",
-                    FilterType::HighShelf => "HS",
+                    FilterType::LowShelf => "LSC",
+                    FilterType::HighShelf => "HSC",
                 };
                 apo_text.push_str(&format!(
-                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
                     i + 1, label, filter.freq, filter.gain, filter.q
                 ));
             }
@@ -562,42 +575,73 @@ pub fn apply_stereo_eq_to_device(
             for (i, filter) in right_filters.iter().enumerate() {
                 let label = match filter.filter_type {
                     FilterType::Peaking => "PK",
-                    FilterType::LowShelf => "LS",
-                    FilterType::HighShelf => "HS",
+                    FilterType::LowShelf => "LSC",
+                    FilterType::HighShelf => "HSC",
                 };
                 apo_text.push_str(&format!(
-                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
                     i + 1, label, filter.freq, filter.gain, filter.q
                 ));
             }
         } else {
-            let active = if !left_filters.is_empty() { &left_filters } else { &right_filters };
             apo_text.push_str("Channel: all\n");
-            for (i, filter) in active.iter().enumerate() {
+            for (i, filter) in all_filters.iter().enumerate() {
                 let label = match filter.filter_type {
                     FilterType::Peaking => "PK",
-                    FilterType::LowShelf => "LS",
-                    FilterType::HighShelf => "HS",
+                    FilterType::LowShelf => "LSC",
+                    FilterType::HighShelf => "HSC",
                 };
                 apo_text.push_str(&format!(
-                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
                     i + 1, label, filter.freq, filter.gain, filter.q
                 ));
             }
         }
 
-        // Try writing to default Equalizer APO config location
-        let standard_apo_path = r"C:\Program Files\EqualizerAPO\config\config.txt";
-        let _ = std::fs::write(standard_apo_path, &apo_text);
+        // Potential Equalizer APO directory paths
+        let apo_dirs = [
+            r"C:\Program Files\EqualizerAPO\config",
+            r"C:\Program Files (x86)\EqualizerAPO\config",
+        ];
 
-        // Also write to user TEMP directory as backup
+        let mut written = false;
+        for dir in &apo_dirs {
+            let config_dir = std::path::Path::new(dir);
+            if config_dir.exists() {
+                // Write directly to config.txt
+                let config_file = config_dir.join("config.txt");
+                if let Err(e) = std::fs::write(&config_file, &apo_text) {
+                    eprintln!("Failed to write to {:?}: {}", config_file, e);
+                } else {
+                    written = true;
+                }
+
+                // Also write to peace.txt since user has Peace GUI
+                let peace_file = config_dir.join("peace.txt");
+                let _ = std::fs::write(&peace_file, &apo_text);
+
+                // Also write to dedicated ulteq.txt
+                let ulteq_file = config_dir.join("ulteq.txt");
+                let _ = std::fs::write(&ulteq_file, &apo_text);
+            }
+        }
+
+        // Save convenient copies for Peace manual import
+        if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            let desktop_path = format!(r"{}\Desktop\ulteq_peace_import.txt", user_profile);
+            let _ = std::fs::write(&desktop_path, &apo_text);
+        }
+
+        // Also write in current working directory and temp
+        let _ = std::fs::write("ulteq_apo_config.txt", &apo_text);
         if let Ok(temp_dir) = std::env::var("TEMP") {
             let temp_apo = format!(r"{}\ulteq_apo_config.txt", temp_dir);
             let _ = std::fs::write(&temp_apo, &apo_text);
         }
 
-        // Also write in working directory
-        let _ = std::fs::write("ulteq_apo_config.txt", &apo_text);
+        if !written {
+            eprintln!("Warning: Equalizer APO config folder not found or write access denied.");
+        }
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -587,24 +587,24 @@ class _SidebarState extends State<Sidebar> {
       children: [
         // Headphones Section Header
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: AppColors.borderSubtle)),
           ),
           child: Row(
             children: [
-              const Text('LOADED HEADPHONES', style: AppTypography.sectionHeader),
-              const SizedBox(width: 8),
+              const Text('HEADPHONES', style: AppTypography.sectionHeader),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: _models.isNotEmpty ? AppColors.primaryGlow : AppColors.borderSubtle,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${_models.length}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w600,
                     fontFamily: AppTypography.monoFont,
                     color: _models.isNotEmpty ? AppColors.primaryLight : AppColors.textMuted,
@@ -618,7 +618,7 @@ class _SidebarState extends State<Sidebar> {
                   borderRadius: BorderRadius.circular(6),
                   onTap: _showImportCsvDialog,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceRaised,
                       borderRadius: BorderRadius.circular(6),
@@ -628,11 +628,11 @@ class _SidebarState extends State<Sidebar> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.file_upload_outlined, size: 12, color: AppColors.cyanLight),
-                        SizedBox(width: 4),
+                        SizedBox(width: 3),
                         Text(
-                          'Import',
+                          'CSV',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textSecondary,
                           ),
@@ -642,12 +642,12 @@ class _SidebarState extends State<Sidebar> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               InkWell(
                 borderRadius: BorderRadius.circular(6),
                 onTap: () => _showModelSelectionDialog(null),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(6),
@@ -656,11 +656,11 @@ class _SidebarState extends State<Sidebar> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.add, size: 12, color: Colors.white),
-                      SizedBox(width: 4),
+                      SizedBox(width: 3),
                       Text(
                         'Add',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
                         ),

@@ -939,3 +939,502 @@ pub fn modify_target(base_target: Vec<Point>, tilt: f32, bass: f32, treble: f32,
     
     new_target
 }
+
+// =========================================================================
+// Universal EQ Export Formatters
+// =========================================================================
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn export_preset_equalizer_apo(
+    left_filters: Vec<ActiveFilter>,
+    right_filters: Vec<ActiveFilter>,
+    preamp: f32,
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("Preamp: {:.1} dB\n", preamp));
+
+    let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
+
+    if is_stereo_split {
+        out.push_str("Channel: L\n");
+        for (i, filter) in left_filters.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "PK",
+                FilterType::LowShelf => "LSC",
+                FilterType::HighShelf => "HSC",
+            };
+            out.push_str(&format!(
+                "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
+                i + 1, label, filter.freq, filter.gain, filter.q
+            ));
+        }
+
+        out.push_str("\nChannel: R\n");
+        for (i, filter) in right_filters.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "PK",
+                FilterType::LowShelf => "LSC",
+                FilterType::HighShelf => "HSC",
+            };
+            out.push_str(&format!(
+                "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
+                i + 1, label, filter.freq, filter.gain, filter.q
+            ));
+        }
+    } else {
+        out.push_str("Channel: all\n");
+        let active = if !left_filters.is_empty() {
+            &left_filters
+        } else {
+            &right_filters
+        };
+        for (i, filter) in active.iter().enumerate() {
+            let label = match filter.filter_type {
+                FilterType::Peaking => "PK",
+                FilterType::LowShelf => "LSC",
+                FilterType::HighShelf => "HSC",
+            };
+            out.push_str(&format!(
+                "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} dB Q {:.2}\n",
+                i + 1, label, filter.freq, filter.gain, filter.q
+            ));
+        }
+    }
+
+    out
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn export_preset_qudelix(filters: Vec<ActiveFilter>, preamp: f32) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("Preamp: {:.1} dB\n", preamp));
+
+    for (i, filter) in filters.iter().take(10).enumerate() {
+        let label = match filter.filter_type {
+            FilterType::Peaking => "PK",
+            FilterType::LowShelf => "LS",
+            FilterType::HighShelf => "HS",
+        };
+        out.push_str(&format!(
+            "Filter {}: ON {} Fc {:.0} Hz Gain {:.1} dB Q {:.3}\n",
+            i + 1, label, filter.freq, filter.gain, filter.q
+        ));
+    }
+
+    out
+}
+
+fn calculate_filter_gain_at_freq(filters: &[ActiveFilter], f: f32) -> f32 {
+    use biquad::{Coefficients, ToHertz, Type};
+    let fs = 48000.0;
+    let mut total_db = 0.0;
+
+    for filter in filters {
+        let biquad_type = match filter.filter_type {
+            FilterType::Peaking => Type::PeakingEQ(filter.gain),
+            FilterType::LowShelf => Type::LowShelf(filter.gain),
+            FilterType::HighShelf => Type::HighShelf(filter.gain),
+        };
+
+        let coeffs = match Coefficients::<f32>::from_params(biquad_type, fs.hz(), filter.freq.hz(), filter.q) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let omega = 2.0 * std::f32::consts::PI * f / fs;
+        let cos_omega = omega.cos();
+        let sin_omega = omega.sin();
+        let cos_2omega = (2.0 * omega).cos();
+        let sin_2omega = (2.0 * omega).sin();
+
+        let num_real = coeffs.b0 + coeffs.b1 * cos_omega + coeffs.b2 * cos_2omega;
+        let num_imag = -(coeffs.b1 * sin_omega + coeffs.b2 * sin_2omega);
+
+        let den_real = 1.0 + coeffs.a1 * cos_omega + coeffs.a2 * cos_2omega;
+        let den_imag = -(coeffs.a1 * sin_omega + coeffs.a2 * sin_2omega);
+
+        let mag_sq = (num_real * num_real + num_imag * num_imag) / (den_real * den_real + den_imag * den_imag);
+        if mag_sq > 0.0 {
+            total_db += 10.0 * mag_sq.log10();
+        }
+    }
+
+    total_db
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn export_preset_wavelet(filters: Vec<ActiveFilter>) -> String {
+    let n_points = 127;
+    let min_f: f32 = 20.0;
+    let max_f: f32 = 20000.0;
+
+    let mut entries = Vec::with_capacity(n_points);
+
+    for i in 0..n_points {
+        let f = min_f * (max_f / min_f).powf(i as f32 / (n_points - 1) as f32);
+        let gain = calculate_filter_gain_at_freq(&filters, f);
+        let f_str = if f >= 100.0 {
+            format!("{:.0}", f)
+        } else {
+            format!("{:.1}", f)
+        };
+        entries.push(format!("{} {:.1}", f_str, gain));
+    }
+
+    format!("GraphicEQ: {}", entries.join("; "))
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RoonBandExport {
+    #[serde(rename = "type")]
+    pub band_type: String,
+    pub frequency: f32,
+    pub gain_db: f32,
+    pub q: f32,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RoonPresetExport {
+    #[serde(rename = "type")]
+    pub preset_type: String,
+    pub name: String,
+    pub preamp_db: f32,
+    pub bands: Vec<RoonBandExport>,
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn export_preset_roon(filters: Vec<ActiveFilter>, preamp: f32) -> String {
+    let bands = filters
+        .iter()
+        .map(|f| {
+            let band_type = match f.filter_type {
+                FilterType::Peaking => "Peak",
+                FilterType::LowShelf => "LowShelf",
+                FilterType::HighShelf => "HighShelf",
+            };
+            RoonBandExport {
+                band_type: band_type.to_string(),
+                frequency: (f.freq * 10.0).round() / 10.0,
+                gain_db: (f.gain * 100.0).round() / 100.0,
+                q: (f.q * 1000.0).round() / 1000.0,
+            }
+        })
+        .collect();
+
+    let preset = RoonPresetExport {
+        preset_type: "parametric_equalizer".to_string(),
+        name: "UltEQ Preset".to_string(),
+        preamp_db: (preamp * 10.0).round() / 10.0,
+        bands,
+    };
+
+    serde_json::to_string_pretty(&preset).unwrap_or_else(|_| "{}".to_string())
+}
+
+// =========================================================================
+// User Presets System (SQLite)
+// =========================================================================
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UserPresetModel {
+    pub id: i64,
+    pub name: String,
+    pub created_at: String,
+    pub filters: Vec<ActiveFilter>,
+    pub preamp: f32,
+    pub headphone_name: Option<String>,
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn save_user_preset(
+    db_path: String,
+    name: String,
+    filters: Vec<ActiveFilter>,
+    preamp: f32,
+    headphone_name: Option<String>,
+) -> Result<i64, String> {
+    let resolved = resolve_db_path(&db_path);
+    let conn = rusqlite::Connection::open(&resolved).map_err(|e| e.to_string())?;
+    crate::database::setup_database(&conn).map_err(|e| e.to_string())?;
+
+    let created_at: String = conn
+        .query_row("SELECT datetime('now', 'localtime')", [], |r| r.get(0))
+        .unwrap_or_else(|_| "1970-01-01 00:00:00".to_string());
+
+    let filters_json = serde_json::to_string(&filters).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT INTO user_presets (name, created_at, filters_json, preamp, headphone_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![&name, &created_at, &filters_json, preamp as f64, &headphone_name],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_user_presets(db_path: String) -> Vec<UserPresetModel> {
+    let mut presets = Vec::new();
+    let resolved = resolve_db_path(&db_path);
+    if let Ok(conn) = rusqlite::Connection::open(&resolved) {
+        let _ = crate::database::setup_database(&conn);
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT id, name, created_at, filters_json, preamp, headphone_name FROM user_presets ORDER BY id DESC"
+        ) {
+            let rows = stmt.query_map([], |row| {
+                let id: i64 = row.get(0)?;
+                let name: String = row.get(1)?;
+                let created_at: String = row.get(2)?;
+                let filters_json: String = row.get(3)?;
+                let preamp: f64 = row.get(4)?;
+                let headphone_name: Option<String> = row.get(5)?;
+                Ok((id, name, created_at, filters_json, preamp, headphone_name))
+            });
+
+            if let Ok(iter) = rows {
+                for item in iter.flatten() {
+                    let filters: Vec<ActiveFilter> = serde_json::from_str(&item.3).unwrap_or_default();
+                    presets.push(UserPresetModel {
+                        id: item.0,
+                        name: item.1,
+                        created_at: item.2,
+                        filters,
+                        preamp: item.4 as f32,
+                        headphone_name: item.5,
+                    });
+                }
+            }
+        }
+    }
+    presets
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn delete_user_preset(db_path: String, id: i64) -> Result<(), String> {
+    let resolved = resolve_db_path(&db_path);
+    let conn = rusqlite::Connection::open(&resolved).map_err(|e| e.to_string())?;
+    let _ = crate::database::setup_database(&conn);
+    conn.execute("DELETE FROM user_presets WHERE id = ?1", rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// =========================================================================
+// Crossfeed Audiophile Module (Bauer BS2B)
+// =========================================================================
+
+pub use crate::dsp::crossfeed::CrossfeedCoefficients;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum CrossfeedPresetMode {
+    Off,
+    Default,
+    Studio,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CrossfeedConfig {
+    pub enabled: bool,
+    pub f_cut: f64,
+    pub feed_db: f64,
+    pub name: String,
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn apply_crossfeed_coefficients(sample_rate: f64, f_cut: f64, feed_db: f64) -> CrossfeedCoefficients {
+    crate::dsp::crossfeed::calculate_crossfeed_coefficients(sample_rate, f_cut, feed_db)
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_crossfeed_preset(mode: CrossfeedPresetMode) -> CrossfeedConfig {
+    match mode {
+        CrossfeedPresetMode::Default => CrossfeedConfig {
+            enabled: true,
+            f_cut: 700.0,
+            feed_db: 4.5,
+            name: "Default".to_string(),
+        },
+        CrossfeedPresetMode::Studio => CrossfeedConfig {
+            enabled: true,
+            f_cut: 650.0,
+            feed_db: 9.5,
+            name: "Studio".to_string(),
+        },
+        CrossfeedPresetMode::Off => CrossfeedConfig {
+            enabled: false,
+            f_cut: 0.0,
+            feed_db: 0.0,
+            name: "Off".to_string(),
+        },
+    }
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_crossfeed_preset_by_name(mode_name: String) -> CrossfeedConfig {
+    match mode_name.trim().to_lowercase().as_str() {
+        "default" | "high" => CrossfeedConfig {
+            enabled: true,
+            f_cut: 700.0,
+            feed_db: 4.5,
+            name: "Default".to_string(),
+        },
+        "studio" | "jmeier" | "low" => CrossfeedConfig {
+            enabled: true,
+            f_cut: 650.0,
+            feed_db: 9.5,
+            name: "Studio".to_string(),
+        },
+        _ => CrossfeedConfig {
+            enabled: false,
+            f_cut: 0.0,
+            feed_db: 0.0,
+            name: "Off".to_string(),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_export_equalizer_apo_single_and_stereo() {
+        let filters = vec![
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 1000.0,
+                gain: -2.5,
+                q: 1.41,
+            },
+            ActiveFilter {
+                filter_type: FilterType::LowShelf,
+                freq: 105.0,
+                gain: 4.0,
+                q: 0.71,
+            },
+        ];
+
+        let single_apo = export_preset_equalizer_apo(filters.clone(), Vec::new(), -4.0);
+        assert!(single_apo.contains("Preamp: -4.0 dB"));
+        assert!(single_apo.contains("Channel: all"));
+        assert!(single_apo.contains("Filter 1: ON PK Fc 1000.0 Hz Gain -2.5 dB Q 1.41"));
+        assert!(single_apo.contains("Filter 2: ON LSC Fc 105.0 Hz Gain 4.0 dB Q 0.71"));
+
+        let stereo_apo = export_preset_equalizer_apo(filters.clone(), filters.clone(), -4.0);
+        assert!(stereo_apo.contains("Channel: L"));
+        assert!(stereo_apo.contains("Channel: R"));
+    }
+
+    #[test]
+    fn test_export_qudelix_format() {
+        let filters = vec![
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 32.0,
+                gain: 2.0,
+                q: 1.0,
+            },
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 1000.0,
+                gain: -1.5,
+                q: 1.414,
+            },
+        ];
+
+        let out = export_preset_qudelix(filters, -2.0);
+        assert!(out.contains("Preamp: -2.0 dB"));
+        assert!(out.contains("Filter 1: ON PK Fc 32 Hz Gain 2.0 dB Q 1.000"));
+        assert!(out.contains("Filter 2: ON PK Fc 1000 Hz Gain -1.5 dB Q 1.414"));
+    }
+
+    #[test]
+    fn test_export_wavelet_format() {
+        let filters = vec![
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 1000.0,
+                gain: 3.0,
+                q: 1.0,
+            }
+        ];
+
+        let out = export_preset_wavelet(filters);
+        assert!(out.starts_with("GraphicEQ: "));
+        let count = out.split(';').count();
+        assert_eq!(count, 127);
+    }
+
+    #[test]
+    fn test_export_roon_format() {
+        let filters = vec![
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 1000.0,
+                gain: -2.0,
+                q: 1.41,
+            }
+        ];
+
+        let json_str = export_preset_roon(filters, -2.0);
+        assert!(json_str.contains("\"type\": \"parametric_equalizer\""));
+        assert!(json_str.contains("\"preamp_db\": -2.0"));
+        assert!(json_str.contains("\"type\": \"Peak\""));
+    }
+
+    #[test]
+    fn test_user_presets_sqlite_crud() {
+        // Use a temporary database
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test_ulteq_user_presets.db").to_str().unwrap().to_string();
+        let _ = std::fs::remove_file(&db_path);
+
+        let filters = vec![
+            ActiveFilter {
+                filter_type: FilterType::Peaking,
+                freq: 2400.0,
+                gain: -3.0,
+                q: 2.0,
+            }
+        ];
+
+        let preset_id = save_user_preset(
+            db_path.clone(),
+            "My Sennheiser Preset".to_string(),
+            filters.clone(),
+            -3.0,
+            Some("HD600".to_string()),
+        ).expect("Failed to save user preset");
+
+        assert!(preset_id > 0);
+
+        let presets = get_user_presets(db_path.clone());
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].name, "My Sennheiser Preset");
+        assert_eq!(presets[0].headphone_name, Some("HD600".to_string()));
+        assert_eq!(presets[0].filters.len(), 1);
+        assert_eq!(presets[0].filters[0].freq, 2400.0);
+        assert_eq!(presets[0].preamp, -3.0);
+
+        delete_user_preset(db_path.clone(), preset_id).expect("Failed to delete user preset");
+        let presets_after = get_user_presets(db_path.clone());
+        assert_eq!(presets_after.len(), 0);
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn test_crossfeed_presets() {
+        let def = get_crossfeed_preset(CrossfeedPresetMode::Default);
+        assert!(def.enabled);
+        assert_eq!(def.f_cut, 700.0);
+        assert_eq!(def.feed_db, 4.5);
+
+        let stu = get_crossfeed_preset(CrossfeedPresetMode::Studio);
+        assert!(stu.enabled);
+        assert_eq!(stu.f_cut, 650.0);
+        assert_eq!(stu.feed_db, 9.5);
+
+        let off = get_crossfeed_preset(CrossfeedPresetMode::Off);
+        assert!(!off.enabled);
+    }
+}

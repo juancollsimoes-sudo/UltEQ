@@ -118,7 +118,7 @@ class BandListPanel extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.graphic_eq, size: 36, color: AppColors.textMuted.withOpacity(0.4)),
+                          Icon(Icons.graphic_eq, size: 36, color: AppColors.textMuted.withValues(alpha: 0.4)),
                           const SizedBox(height: 12),
                           const Text(
                             'No Active Filters',
@@ -187,12 +187,12 @@ class BandListPanel extends StatelessWidget {
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? AppColors.primary.withOpacity(0.2)
+                                        ? AppColors.primary.withValues(alpha: 0.2)
                                         : AppColors.surface,
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
                                       color: isSelected
-                                          ? AppColors.primaryLight.withOpacity(0.4)
+                                          ? AppColors.primaryLight.withValues(alpha: 0.4)
                                           : AppColors.borderSubtle,
                                     ),
                                   ),
@@ -312,9 +312,9 @@ class BandListPanel extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: typeColor.withOpacity(0.12),
+          color: typeColor.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: typeColor.withOpacity(0.35)),
+          border: Border.all(color: typeColor.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

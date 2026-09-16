@@ -7,6 +7,7 @@ import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
+import 'dsp/crossfeed.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 
@@ -31,10 +32,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelMatchResult dco_decode_channel_match_result(dynamic raw);
 
   @protected
+  CrossfeedCoefficients dco_decode_crossfeed_coefficients(dynamic raw);
+
+  @protected
+  CrossfeedConfig dco_decode_crossfeed_config(dynamic raw);
+
+  @protected
+  CrossfeedPresetMode dco_decode_crossfeed_preset_mode(dynamic raw);
+
+  @protected
   DualMeasurementResult dco_decode_dual_measurement_result(dynamic raw);
 
   @protected
   double dco_decode_f_32(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
 
   @protected
   FilterType dco_decode_filter_type(dynamic raw);
@@ -44,6 +57,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -61,6 +77,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<UserPresetModel> dco_decode_list_user_preset_model(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -74,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UserPresetModel dco_decode_user_preset_model(dynamic raw);
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
@@ -93,12 +115,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CrossfeedCoefficients sse_decode_crossfeed_coefficients(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CrossfeedConfig sse_decode_crossfeed_config(SseDeserializer deserializer);
+
+  @protected
+  CrossfeedPresetMode sse_decode_crossfeed_preset_mode(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DualMeasurementResult sse_decode_dual_measurement_result(
     SseDeserializer deserializer,
   );
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
   FilterType sse_decode_filter_type(SseDeserializer deserializer);
@@ -108,6 +146,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -129,6 +170,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<UserPresetModel> sse_decode_list_user_preset_model(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -142,6 +188,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UserPresetModel sse_decode_user_preset_model(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
@@ -162,6 +211,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_crossfeed_coefficients(
+    CrossfeedCoefficients self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_crossfeed_config(
+    CrossfeedConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_crossfeed_preset_mode(
+    CrossfeedPresetMode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_dual_measurement_result(
     DualMeasurementResult self,
     SseSerializer serializer,
@@ -169,6 +236,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_filter_type(FilterType self, SseSerializer serializer);
@@ -181,6 +251,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -207,6 +280,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_user_preset_model(
+    List<UserPresetModel> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -220,6 +299,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_preset_model(
+    UserPresetModel self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);

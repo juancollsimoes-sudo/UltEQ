@@ -51,8 +51,12 @@ UltEQ resolves this by pairing:
 
 - 🎯 **Surgical AutoEq Optimization:** Calculates mathematically optimal parametric biquad filters ($f_0$, Gain, $Q$) to align any headphone measurement with industry targets (Harman, IEF Neutral, Diffuse Field) without filter overlap or clustering.
 - ⚖️ **Acoustic Raw Channel Matching:** Symmetrically calibrates physical left/right earphone driver deviations to a shared acoustic midline, restoring a perfectly centered stereo soundstage without altering target EQ tonality.
+- ⤓ **Universal Preset Exporter:** Export your parametric EQ curves in 1-click for **Peace / Equalizer APO**, **Qudelix 5K / FiiO / Moondrop DSP**, **Wavelet GraphicEQ**, and **Roon**, or copy directly to your clipboard.
+- 💾 **Custom User Presets:** Save, name, load, and manage your personal EQ profiles directly inside the local SQLite database.
+- 🔄 **A/B Level-Matched Bypass:** Real-time A/B auditioning with automatic loudness compensation to eliminate psychoacoustic volume bias.
+- 🎧 **Audiophile Crossfeed (Bauer BS2B):** Selectable acoustic crosstalk simulation (*Off*, *Subtle*, *Studio*) to eliminate in-the-head headphone fatigue and simulate near-field studio monitors.
 - 📊 **Crinacle Standard Graph Scaling:** Toggle between standard 55 dB SPL span (50 dB sweet-spot normalized at 1 kHz for natural IEM visualization) and DAW Relative Gain mode ($\pm18$ dB / $\pm24$ dB).
-- 🎛️ **Native PipeWire Filter Chains:** Generates and injects independent Left (`FL`) and Right (`FR`) biquad DSP graphs directly into PipeWire with zero virtual cables and zero latency overhead.
+- 🎛️ **Native PipeWire & Equalizer APO Injections:** Direct PipeWire filter-chain graph injection on Linux (`FL` / `FR`), alongside native Equalizer APO & Peace synchronizer on Windows.
 - 🎨 **Linear Dark Precision Aesthetic:** Tailored obsidian palette (`#0B0E14`, `#10B981`, `#38BDF8`, `#FB7185`), glassmorphic panels, and monospaced acoustic readouts.
 - 📂 **Multi-Source CSV & SQLite Support:** Integrated database of thousands of headphones and target curves, alongside a flexible CSV importer supporting REW, Squiglink, and Crinacle multi-column stereo formats.
 - 🛡️ **Zero-Clipping Headroom Guarantee:** Continuous transfer function evaluation ensuring the digital output never exceeds 0 dBFS.

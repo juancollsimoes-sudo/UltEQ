@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_app/ui/canvas/logarithmic_canvas.dart';
 import 'package:flutter_app/ui/controls/band_list_panel.dart';
+import 'package:flutter_app/ui/controls/export_preset_dialog.dart';
 import 'package:flutter_app/ui/controls/target_adjustments_panel.dart';
 import 'package:flutter_app/ui/sidebar/sidebar.dart';
 import 'package:flutter_app/models/eq_state.dart';
@@ -213,6 +214,10 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
       return;
     }
 
+    if (_eqState.isBypassActive) {
+      _eqState.setBypass(false);
+    }
+
     final globalFilters = _eqState.nodes.map((n) {
       FilterType t = FilterType.peaking;
       if (n.type == EqFilterType.lowShelf) t = FilterType.lowShelf;
@@ -247,6 +252,43 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
     }
   }
 
+  void _toggleBypassWithAudioSink() {
+    _eqState.toggleBypass();
+    final isBypassed = _eqState.isBypassActive;
+    if (_eqState.selectedOutputDevice != null) {
+      if (isBypassed) {
+        try {
+          applyEqToDevice(deviceName: _eqState.selectedOutputDevice!, filters: []);
+        } catch (_) {}
+      } else {
+        _applyEq();
+        return;
+      }
+    }
+    final offset = _eqState.autoGainOffsetDb;
+    final offsetStr = '${offset >= 0 ? "+" : ""}${offset.toStringAsFixed(1)} dB';
+    if (isBypassed) {
+      _showModernToast(
+        'EQ Bypassed (Level Matched: $offsetStr)',
+        icon: Icons.volume_off,
+        color: AppColors.amberLight,
+      );
+    } else {
+      _showModernToast(
+        'EQ Active',
+        icon: Icons.check_circle_outline,
+        color: AppColors.emeraldLight,
+      );
+    }
+  }
+
+  void _showExportPresetDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => ExportPresetDialog(eqState: _eqState),
+    );
+  }
+
   void _showModernToast(String message, {required IconData icon, required Color color}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +297,7 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
         backgroundColor: AppColors.surfaceRaised,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: color.withOpacity(0.35)),
+          side: BorderSide(color: color.withValues(alpha: 0.35)),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -325,9 +367,9 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.12),
+                          color: AppColors.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: AppColors.primaryLight.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.3)),
                         ),
                         child: const Text(
                           'STUDIO',
@@ -384,6 +426,10 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                             showPulseDot: true,
                             onTap: _showAudioConfigDialog,
                           ),
+                          const SizedBox(width: 8),
+
+                          // Crossfeed Chip
+                          _buildCrossfeedChip(),
                         ],
                       ),
                     ),
@@ -413,7 +459,9 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                             color: canAutoEq ? null : AppColors.card,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: canAutoEq ? AppColors.primaryLight.withOpacity(0.5) : AppColors.borderSubtle,
+                              color: canAutoEq
+                                  ? AppColors.primaryLight.withValues(alpha: 0.5)
+                                  : AppColors.borderSubtle,
                             ),
                             boxShadow: canAutoEq
                                 ? const [BoxShadow(color: AppColors.primaryGlow, blurRadius: 10, offset: Offset(0, 2))]
@@ -450,6 +498,102 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
 
                       const SizedBox(width: 8),
 
+                      // Bypass A/B Button
+                      Tooltip(
+                        message: _eqState.isBypassActive
+                            ? 'EQ Bypassed (Auto-Gain: ${_eqState.autoGainOffsetDb >= 0 ? "+" : ""}${_eqState.autoGainOffsetDb.toStringAsFixed(1)} dB) • Click to activate'
+                            : 'EQ Active • Click to Bypass for A/B level-matched comparison',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: _toggleBypassWithAudioSink,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _eqState.isBypassActive
+                                  ? AppColors.amber.withValues(alpha: 0.18)
+                                  : AppColors.card,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _eqState.isBypassActive
+                                    ? AppColors.amberLight.withValues(alpha: 0.6)
+                                    : AppColors.borderSubtle,
+                              ),
+                              boxShadow: _eqState.isBypassActive
+                                  ? [
+                                      BoxShadow(
+                                        color: AppColors.amber.withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _eqState.isBypassActive
+                                      ? Icons.volume_off_outlined
+                                      : Icons.compare_arrows,
+                                  size: 13,
+                                  color: _eqState.isBypassActive
+                                      ? AppColors.amberLight
+                                      : AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _eqState.isBypassActive ? 'Bypass (A/B)' : 'A/B Bypass',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _eqState.isBypassActive
+                                        ? AppColors.amberLight
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      // Export Preset Button
+                      Tooltip(
+                        message: 'Export Preset (Equalizer APO / Qudelix / Wavelet / Roon)',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: _showExportPresetDialog,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.card,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppColors.borderSubtle),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.download, size: 13, color: AppColors.primaryLight),
+                                SizedBox(width: 5),
+                                Text(
+                                  'Export',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
                       // Apply EQ Button (Emerald Active)
                       InkWell(
                         borderRadius: BorderRadius.circular(6),
@@ -463,7 +607,7 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.emeraldLight.withOpacity(0.5)),
+                            border: Border.all(color: AppColors.emeraldLight.withValues(alpha: 0.5)),
                             boxShadow: const [
                               BoxShadow(color: AppColors.emeraldGlow, blurRadius: 10, offset: Offset(0, 2)),
                             ],
@@ -642,6 +786,125 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCrossfeedChip() {
+    final mode = _eqState.crossfeedMode;
+    final isEnabled = mode != 'Off';
+
+    return PopupMenuButton<String>(
+      initialValue: mode,
+      tooltip: 'Audiophile Bauer BS2B Crossfeed',
+      color: AppColors.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.borderSubtle),
+      ),
+      onSelected: (selected) {
+        _eqState.setCrossfeedMode(selected);
+        final config = _eqState.crossfeedConfig;
+        final detail = config != null && config.enabled
+            ? ' (${config.fCut.toInt()} Hz / ${config.feedDb.toStringAsFixed(1)} dB)'
+            : '';
+        _showModernToast(
+          'Crossfeed: $selected$detail',
+          icon: Icons.headphones,
+          color: selected == 'Off' ? AppColors.textMuted : AppColors.cyanLight,
+        );
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'Off',
+          height: 38,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Crossfeed: Off',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+              Text(
+                'Standard discrete stereo separation',
+                style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'Subtle',
+          height: 38,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Subtle (BS2B Default • 700 Hz / 4.5 dB)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.cyanLight),
+              ),
+              Text(
+                'Natural acoustic cross-ear delay and stereo blend',
+                style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'Studio',
+          height: 38,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Studio (Meier Mode • 650 Hz / 9.5 dB)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryLight),
+              ),
+              Text(
+                'Speaker-like natural center image for mixing and mastering',
+                style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        decoration: BoxDecoration(
+          color: isEnabled ? AppColors.card : AppColors.inputBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isEnabled ? AppColors.cyanLight.withValues(alpha: 0.5) : AppColors.borderSubtle,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.surround_sound,
+              size: 13,
+              color: isEnabled ? AppColors.cyanLight : AppColors.textMuted,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Crossfeed: $mode',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isEnabled ? FontWeight.w600 : FontWeight.w400,
+                color: isEnabled ? AppColors.textPrimary : AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 3),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 13,
+              color: isEnabled ? AppColors.cyanLight : AppColors.textMuted,
             ),
           ],
         ),

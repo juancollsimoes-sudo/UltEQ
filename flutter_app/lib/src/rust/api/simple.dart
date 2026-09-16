@@ -3,11 +3,13 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../dsp/crossfeed.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `interpolate_points`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `calculate_filter_gain_at_freq`, `interpolate_points`, `resolve_db_path`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RoonBandExport`, `RoonPresetExport`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 String greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
@@ -110,6 +112,73 @@ List<Point> modifyTarget({
   earGain: earGain,
 );
 
+String exportPresetEqualizerApo({
+  required List<ActiveFilter> leftFilters,
+  required List<ActiveFilter> rightFilters,
+  required double preamp,
+}) => RustLib.instance.api.crateApiSimpleExportPresetEqualizerApo(
+  leftFilters: leftFilters,
+  rightFilters: rightFilters,
+  preamp: preamp,
+);
+
+String exportPresetQudelix({
+  required List<ActiveFilter> filters,
+  required double preamp,
+}) => RustLib.instance.api.crateApiSimpleExportPresetQudelix(
+  filters: filters,
+  preamp: preamp,
+);
+
+String exportPresetWavelet({required List<ActiveFilter> filters}) =>
+    RustLib.instance.api.crateApiSimpleExportPresetWavelet(filters: filters);
+
+String exportPresetRoon({
+  required List<ActiveFilter> filters,
+  required double preamp,
+}) => RustLib.instance.api.crateApiSimpleExportPresetRoon(
+  filters: filters,
+  preamp: preamp,
+);
+
+PlatformInt64 saveUserPreset({
+  required String dbPath,
+  required String name,
+  required List<ActiveFilter> filters,
+  required double preamp,
+  String? headphoneName,
+}) => RustLib.instance.api.crateApiSimpleSaveUserPreset(
+  dbPath: dbPath,
+  name: name,
+  filters: filters,
+  preamp: preamp,
+  headphoneName: headphoneName,
+);
+
+List<UserPresetModel> getUserPresets({required String dbPath}) =>
+    RustLib.instance.api.crateApiSimpleGetUserPresets(dbPath: dbPath);
+
+void deleteUserPreset({required String dbPath, required PlatformInt64 id}) =>
+    RustLib.instance.api.crateApiSimpleDeleteUserPreset(dbPath: dbPath, id: id);
+
+CrossfeedCoefficients applyCrossfeedCoefficients({
+  required double sampleRate,
+  required double fCut,
+  required double feedDb,
+}) => RustLib.instance.api.crateApiSimpleApplyCrossfeedCoefficients(
+  sampleRate: sampleRate,
+  fCut: fCut,
+  feedDb: feedDb,
+);
+
+CrossfeedConfig getCrossfeedPreset({required CrossfeedPresetMode mode}) =>
+    RustLib.instance.api.crateApiSimpleGetCrossfeedPreset(mode: mode);
+
+CrossfeedConfig getCrossfeedPresetByName({required String modeName}) => RustLib
+    .instance
+    .api
+    .crateApiSimpleGetCrossfeedPresetByName(modeName: modeName);
+
 class ActiveFilter {
   final FilterType filterType;
   final double freq;
@@ -172,6 +241,36 @@ class ChannelMatchResult {
           matchedR == other.matchedR &&
           residualImbalanceDb == other.residualImbalanceDb;
 }
+
+class CrossfeedConfig {
+  final bool enabled;
+  final double fCut;
+  final double feedDb;
+  final String name;
+
+  const CrossfeedConfig({
+    required this.enabled,
+    required this.fCut,
+    required this.feedDb,
+    required this.name,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^ fCut.hashCode ^ feedDb.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CrossfeedConfig &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          fCut == other.fCut &&
+          feedDb == other.feedDb &&
+          name == other.name;
+}
+
+enum CrossfeedPresetMode { off, default_, studio }
 
 class DualMeasurementResult {
   final bool isDualChannel;
@@ -269,4 +368,43 @@ class Point {
           runtimeType == other.runtimeType &&
           x == other.x &&
           y == other.y;
+}
+
+class UserPresetModel {
+  final PlatformInt64 id;
+  final String name;
+  final String createdAt;
+  final List<ActiveFilter> filters;
+  final double preamp;
+  final String? headphoneName;
+
+  const UserPresetModel({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.filters,
+    required this.preamp,
+    this.headphoneName,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      createdAt.hashCode ^
+      filters.hashCode ^
+      preamp.hashCode ^
+      headphoneName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserPresetModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          createdAt == other.createdAt &&
+          filters == other.filters &&
+          preamp == other.preamp &&
+          headphoneName == other.headphoneName;
 }

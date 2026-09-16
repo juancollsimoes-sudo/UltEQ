@@ -59,6 +59,36 @@ class EqState extends ChangeNotifier {
 
   double preampGain = 0.0;
   bool isComputingAutoeq = false;
+  bool isBypassActive = false;
+  String crossfeedMode = 'Off';
+  CrossfeedConfig? crossfeedConfig;
+
+  double get autoGainOffsetDb {
+    if (nodes.isEmpty) return preampGain;
+    final avgGain = nodes.fold<double>(0.0, (sum, n) => sum + n.gain) / nodes.length;
+    return -(avgGain + preampGain);
+  }
+
+  void toggleBypass() {
+    isBypassActive = !isBypassActive;
+    notifyListeners();
+  }
+
+  void setBypass(bool active) {
+    if (isBypassActive != active) {
+      isBypassActive = active;
+      notifyListeners();
+    }
+  }
+
+  void setCrossfeedMode(String mode) {
+    crossfeedMode = mode;
+    try {
+      final queryMode = mode.toLowerCase() == 'subtle' ? 'default' : mode.toLowerCase();
+      crossfeedConfig = getCrossfeedPresetByName(modeName: queryMode);
+    } catch (_) {}
+    notifyListeners();
+  }
 
   void setScaleMode(YAxisScaleMode mode) {
     scaleMode = mode;
@@ -224,6 +254,19 @@ class EqState extends ChangeNotifier {
 
   void setPreampGain(double gain) {
     preampGain = gain;
+    notifyListeners();
+  }
+
+  void loadUserPreset(UserPresetModel preset) {
+    nodes.clear();
+    for (final f in preset.filters) {
+      EqFilterType t = EqFilterType.peaking;
+      if (f.filterType == FilterType.lowShelf) t = EqFilterType.lowShelf;
+      if (f.filterType == FilterType.highShelf) t = EqFilterType.highShelf;
+      nodes.add(EqNode(freq: f.freq, gain: f.gain, q: f.q, type: t));
+    }
+    preampGain = preset.preamp;
+    selectedIndex = nodes.isNotEmpty ? 0 : null;
     notifyListeners();
   }
 

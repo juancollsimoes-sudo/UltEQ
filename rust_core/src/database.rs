@@ -22,6 +22,18 @@ pub fn setup_database(conn: &Connection) -> Result<()> {
         )",
         [],
     )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            filters_json TEXT NOT NULL,
+            preamp REAL NOT NULL,
+            headphone_name TEXT
+        )",
+        [],
+    )?;
     
     // Try to add file_path if table existed from before (ignore error if it already exists)
     let _ = conn.execute("ALTER TABLE measurements ADD COLUMN file_path TEXT UNIQUE", []);

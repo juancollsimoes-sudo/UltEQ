@@ -369,6 +369,8 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> with TickerProvid
                               hoveredNodeIndex: _hoveredNodeIndex,
                               normalizeToTarget: widget.eqState.normalizeToTarget,
                               scaleMode: widget.eqState.scaleMode,
+                              isBypassActive: widget.eqState.isBypassActive,
+                              autoGainOffsetDb: widget.eqState.autoGainOffsetDb,
                               minFreq: minFreq,
                               maxFreq: maxFreq,
                               minDb: minDb,
@@ -492,6 +494,12 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> with TickerProvid
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  Container(width: 1, height: 16, color: AppColors.borderSubtle),
+                  const SizedBox(width: 8),
+
+                  // Bypass A/B Toggle Chip
+                  _buildBypassToggleChip(),
                 ],
               ),
             ),
@@ -640,6 +648,57 @@ class _LogarithmicCanvasState extends State<LogarithmicCanvas> with TickerProvid
             const SizedBox(width: 3),
             const Icon(Icons.keyboard_arrow_down, size: 14, color: AppColors.primaryLight),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBypassToggleChip() {
+    final isBypass = widget.eqState.isBypassActive;
+    final autoGain = widget.eqState.autoGainOffsetDb;
+    final autoGainStr = '${autoGain >= 0 ? "+" : ""}${autoGain.toStringAsFixed(1)} dB';
+
+    return Tooltip(
+      message: isBypass
+          ? 'EQ Bypassed (Level Matched $autoGainStr) • Click to activate EQ'
+          : 'EQ Active • Click to Bypass for A/B level-matched comparison',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => widget.eqState.toggleBypass(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isBypass
+                ? AppColors.amber.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isBypass
+                  ? AppColors.amberLight.withValues(alpha: 0.6)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isBypass ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                size: 13,
+                color: isBypass ? AppColors.amberLight : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                isBypass ? 'Bypass (A/B)' : 'A/B Match',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isBypass ? AppColors.amberLight : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -808,6 +867,8 @@ class _PrecisionCanvasPainter extends CustomPainter {
   final int? hoveredNodeIndex;
   final bool normalizeToTarget;
   final YAxisScaleMode scaleMode;
+  final bool isBypassActive;
+  final double autoGainOffsetDb;
 
   final double minFreq;
   final double maxFreq;
@@ -833,6 +894,8 @@ class _PrecisionCanvasPainter extends CustomPainter {
     required this.hoveredNodeIndex,
     required this.normalizeToTarget,
     required this.scaleMode,
+    required this.isBypassActive,
+    required this.autoGainOffsetDb,
     required this.minFreq,
     required this.maxFreq,
     required this.minDb,
@@ -870,6 +933,9 @@ class _PrecisionCanvasPainter extends CustomPainter {
     _drawHeadphoneCurve(canvas, size);
     _drawResponseGlowAndCurve(canvas, size);
     _drawNodes(canvas, size);
+    if (isBypassActive) {
+      _drawBypassOverlay(canvas, size);
+    }
   }
 
   void _drawAutoEqScanBeam(Canvas canvas, Size size, double progress) {
@@ -1241,41 +1307,97 @@ class _PrecisionCanvasPainter extends CustomPainter {
     fillPath.lineTo(firstX, baselineY);
     fillPath.close();
 
-    // 1. Translucent Ambient Glow Fill
-    final fillGradient = ui.Gradient.linear(
-      Offset(0, 0),
-      Offset(0, size.height),
-      [
-        AppColors.emerald.withValues(alpha: 0.22),
-        AppColors.emerald.withValues(alpha: 0.04),
-        Colors.transparent,
-      ],
-      [0.0, 0.65, 1.0],
+    if (isBypassActive) {
+      // Attenuated/dimmed curve in bypass mode (opacity 0.30)
+      final strokePaint = Paint()
+        ..color = AppColors.emerald.withValues(alpha: 0.30)
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(curvePath, strokePaint);
+    } else {
+      // 1. Translucent Ambient Glow Fill
+      final fillGradient = ui.Gradient.linear(
+        Offset(0, 0),
+        Offset(0, size.height),
+        [
+          AppColors.emerald.withValues(alpha: 0.22),
+          AppColors.emerald.withValues(alpha: 0.04),
+          Colors.transparent,
+        ],
+        [0.0, 0.65, 1.0],
+      );
+
+      final fillPaint = Paint()
+        ..shader = fillGradient
+        ..style = PaintingStyle.fill;
+
+      canvas.drawPath(fillPath, fillPaint);
+
+      // 2. Subtle Glow Bloom Layer for Curve
+      final bloomPaint = Paint()
+        ..color = AppColors.emeraldLight.withValues(alpha: 0.25)
+        ..strokeWidth = 6.0
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(curvePath, bloomPaint);
+
+      // 3. Crisp High-Definition Response Stroke
+      final strokePaint = Paint()
+        ..color = AppColors.emerald
+        ..strokeWidth = 2.8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(curvePath, strokePaint);
+    }
+  }
+
+  void _drawBypassOverlay(Canvas canvas, Size size) {
+    final text =
+        'BYPASS ACTIVE  •  LEVEL MATCHED (${autoGainOffsetDb >= 0 ? "+" : ""}${autoGainOffsetDb.toStringAsFixed(1)} dB)';
+    final textSpan = TextSpan(
+      text: text,
+      style: const TextStyle(
+        color: AppColors.amberLight,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.8,
+        fontFamily: AppTypography.monoFont,
+      ),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final pillWidth = textPainter.width + 24;
+    const pillHeight = 24.0;
+    final pillX = (size.width - pillWidth) / 2;
+    const pillY = 16.0;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(pillX, pillY, pillWidth, pillHeight),
+      const Radius.circular(12),
     );
 
-    final fillPaint = Paint()
-      ..shader = fillGradient
+    final bgPaint = Paint()
+      ..color = AppColors.surfaceRaised.withValues(alpha: 0.92)
       ..style = PaintingStyle.fill;
+    canvas.drawRRect(rrect, bgPaint);
 
-    canvas.drawPath(fillPath, fillPaint);
-
-    // 2. Subtle Glow Bloom Layer for Curve
-    final bloomPaint = Paint()
-      ..color = AppColors.emeraldLight.withValues(alpha: 0.25)
-      ..strokeWidth = 6.0
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
+    final borderPaint = Paint()
+      ..color = AppColors.amberLight.withValues(alpha: 0.6)
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
-    canvas.drawPath(curvePath, bloomPaint);
+    canvas.drawRRect(rrect, borderPaint);
 
-    // 3. Crisp High-Definition Response Stroke
-    final strokePaint = Paint()
-      ..color = AppColors.emerald
-      ..strokeWidth = 2.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-    canvas.drawPath(curvePath, strokePaint);
+    textPainter.paint(
+      canvas,
+      Offset(pillX + 12, pillY + (pillHeight - textPainter.height) / 2),
+    );
   }
 
   void _drawNodes(Canvas canvas, Size size) {

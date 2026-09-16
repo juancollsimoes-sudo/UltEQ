@@ -1,8 +1,10 @@
 pub mod autoeq;
+pub mod crossfeed;
 pub use autoeq::{
     AutoEqConfig, AutoEqEngine, AutoEqError, BiquadFilter, BiquadFilterType, EarphoneMeasurement,
     EqProfile, TargetCurve, TargetPreset,
 };
+pub use crossfeed::{calculate_crossfeed_coefficients, Bs2bFilter, CrossfeedCoefficients};
 
 use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type};
 

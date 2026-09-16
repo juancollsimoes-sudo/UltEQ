@@ -6,6 +6,7 @@
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dsp/crossfeed.dart';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
@@ -66,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -917610741;
+  int get rustContentHash => -68536718;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -78,6 +79,12 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  CrossfeedCoefficients crateApiSimpleApplyCrossfeedCoefficients({
+    required double sampleRate,
+    required double fCut,
+    required double feedDb,
+  });
+
   void crateApiSimpleApplyEqToDevice({
     required String deviceName,
     required List<ActiveFilter> filters,
@@ -93,6 +100,31 @@ abstract class RustLibApi extends BaseApi {
     required List<ActiveFilter> filters,
   });
 
+  void crateApiSimpleDeleteUserPreset({
+    required String dbPath,
+    required PlatformInt64 id,
+  });
+
+  String crateApiSimpleExportPresetEqualizerApo({
+    required List<ActiveFilter> leftFilters,
+    required List<ActiveFilter> rightFilters,
+    required double preamp,
+  });
+
+  String crateApiSimpleExportPresetQudelix({
+    required List<ActiveFilter> filters,
+    required double preamp,
+  });
+
+  String crateApiSimpleExportPresetRoon({
+    required List<ActiveFilter> filters,
+    required double preamp,
+  });
+
+  String crateApiSimpleExportPresetWavelet({
+    required List<ActiveFilter> filters,
+  });
+
   List<ActiveFilter> crateApiSimpleGenerateAutoeq({
     required List<Point> headphone,
     required List<Point> target,
@@ -100,6 +132,14 @@ abstract class RustLibApi extends BaseApi {
   });
 
   List<String> crateApiSimpleGetAudioDevices();
+
+  CrossfeedConfig crateApiSimpleGetCrossfeedPreset({
+    required CrossfeedPresetMode mode,
+  });
+
+  CrossfeedConfig crateApiSimpleGetCrossfeedPresetByName({
+    required String modeName,
+  });
 
   DualMeasurementResult crateApiSimpleGetDualHeadphoneCurve({
     required String filePath,
@@ -117,6 +157,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   List<String> crateApiSimpleGetTargets({required String dbPath});
+
+  List<UserPresetModel> crateApiSimpleGetUserPresets({required String dbPath});
 
   String crateApiSimpleGreet({required String name});
 
@@ -140,6 +182,14 @@ abstract class RustLibApi extends BaseApi {
     required String csvContent,
   });
 
+  PlatformInt64 crateApiSimpleSaveUserPreset({
+    required String dbPath,
+    required String name,
+    required List<ActiveFilter> filters,
+    required double preamp,
+    String? headphoneName,
+  });
+
   DualMeasurementResult crateApiSimpleSimulateDualChannelImbalance({
     required List<Point> baseCurve,
     required int seed,
@@ -157,6 +207,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  CrossfeedCoefficients crateApiSimpleApplyCrossfeedCoefficients({
+    required double sampleRate,
+    required double fCut,
+    required double feedDb,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_f_64(sampleRate, serializer);
+          sse_encode_f_64(fCut, serializer);
+          sse_encode_f_64(feedDb, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_crossfeed_coefficients,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleApplyCrossfeedCoefficientsConstMeta,
+        argValues: [sampleRate, fCut, feedDb],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleApplyCrossfeedCoefficientsConstMeta =>
+      const TaskConstMeta(
+        debugName: "apply_crossfeed_coefficients",
+        argNames: ["sampleRate", "fCut", "feedDb"],
+      );
+
+  @override
   void crateApiSimpleApplyEqToDevice({
     required String deviceName,
     required List<ActiveFilter> filters,
@@ -167,7 +249,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(deviceName, serializer);
           sse_encode_list_active_filter(filters, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -199,7 +281,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(deviceName, serializer);
           sse_encode_list_active_filter(leftFilters, serializer);
           sse_encode_list_active_filter(rightFilters, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -227,7 +309,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_active_filter(filters, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_point,
@@ -247,6 +329,156 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  void crateApiSimpleDeleteUserPreset({
+    required String dbPath,
+    required PlatformInt64 id,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dbPath, serializer);
+          sse_encode_i_64(id, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleDeleteUserPresetConstMeta,
+        argValues: [dbPath, id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleDeleteUserPresetConstMeta =>
+      const TaskConstMeta(
+        debugName: "delete_user_preset",
+        argNames: ["dbPath", "id"],
+      );
+
+  @override
+  String crateApiSimpleExportPresetEqualizerApo({
+    required List<ActiveFilter> leftFilters,
+    required List<ActiveFilter> rightFilters,
+    required double preamp,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_active_filter(leftFilters, serializer);
+          sse_encode_list_active_filter(rightFilters, serializer);
+          sse_encode_f_32(preamp, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleExportPresetEqualizerApoConstMeta,
+        argValues: [leftFilters, rightFilters, preamp],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleExportPresetEqualizerApoConstMeta =>
+      const TaskConstMeta(
+        debugName: "export_preset_equalizer_apo",
+        argNames: ["leftFilters", "rightFilters", "preamp"],
+      );
+
+  @override
+  String crateApiSimpleExportPresetQudelix({
+    required List<ActiveFilter> filters,
+    required double preamp,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_active_filter(filters, serializer);
+          sse_encode_f_32(preamp, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleExportPresetQudelixConstMeta,
+        argValues: [filters, preamp],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleExportPresetQudelixConstMeta =>
+      const TaskConstMeta(
+        debugName: "export_preset_qudelix",
+        argNames: ["filters", "preamp"],
+      );
+
+  @override
+  String crateApiSimpleExportPresetRoon({
+    required List<ActiveFilter> filters,
+    required double preamp,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_active_filter(filters, serializer);
+          sse_encode_f_32(preamp, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleExportPresetRoonConstMeta,
+        argValues: [filters, preamp],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleExportPresetRoonConstMeta =>
+      const TaskConstMeta(
+        debugName: "export_preset_roon",
+        argNames: ["filters", "preamp"],
+      );
+
+  @override
+  String crateApiSimpleExportPresetWavelet({
+    required List<ActiveFilter> filters,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_active_filter(filters, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleExportPresetWaveletConstMeta,
+        argValues: [filters],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleExportPresetWaveletConstMeta =>
+      const TaskConstMeta(
+        debugName: "export_preset_wavelet",
+        argNames: ["filters"],
+      );
+
+  @override
   List<ActiveFilter> crateApiSimpleGenerateAutoeq({
     required List<Point> headphone,
     required List<Point> target,
@@ -259,7 +491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_point(headphone, serializer);
           sse_encode_list_point(target, serializer);
           sse_encode_usize(bands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_active_filter,
@@ -284,7 +516,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -301,6 +533,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_audio_devices", argNames: []);
 
   @override
+  CrossfeedConfig crateApiSimpleGetCrossfeedPreset({
+    required CrossfeedPresetMode mode,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_crossfeed_preset_mode(mode, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_crossfeed_config,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetCrossfeedPresetConstMeta,
+        argValues: [mode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetCrossfeedPresetConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_crossfeed_preset",
+        argNames: ["mode"],
+      );
+
+  @override
+  CrossfeedConfig crateApiSimpleGetCrossfeedPresetByName({
+    required String modeName,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(modeName, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_crossfeed_config,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetCrossfeedPresetByNameConstMeta,
+        argValues: [modeName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetCrossfeedPresetByNameConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_crossfeed_preset_by_name",
+        argNames: ["modeName"],
+      );
+
+  @override
   DualMeasurementResult crateApiSimpleGetDualHeadphoneCurve({
     required String filePath,
   }) {
@@ -309,7 +597,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filePath, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_dual_measurement_result,
@@ -335,7 +623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(filePath, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_point,
@@ -363,7 +651,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbPath, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_headphone_model,
@@ -393,7 +681,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbPath, serializer);
           sse_encode_String(targetName, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_point,
@@ -419,7 +707,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbPath, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -436,13 +724,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_targets", argNames: ["dbPath"]);
 
   @override
+  List<UserPresetModel> crateApiSimpleGetUserPresets({required String dbPath}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dbPath, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_user_preset_model,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetUserPresetsConstMeta,
+        argValues: [dbPath],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetUserPresetsConstMeta =>
+      const TaskConstMeta(debugName: "get_user_presets", argNames: ["dbPath"]);
+
+  @override
   String crateApiSimpleGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -467,7 +778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 21,
             port: port_,
           );
         },
@@ -498,7 +809,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_point(rawL, serializer);
           sse_encode_list_point(rawR, serializer);
           sse_encode_usize(maxBands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_channel_match_result,
@@ -534,7 +845,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(bass, serializer);
           sse_encode_f_32(treble, serializer);
           sse_encode_f_32(earGain, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_point,
@@ -561,7 +872,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(csvContent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_dual_measurement_result,
@@ -581,6 +892,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  PlatformInt64 crateApiSimpleSaveUserPreset({
+    required String dbPath,
+    required String name,
+    required List<ActiveFilter> filters,
+    required double preamp,
+    String? headphoneName,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(dbPath, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_list_active_filter(filters, serializer);
+          sse_encode_f_32(preamp, serializer);
+          sse_encode_opt_String(headphoneName, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSimpleSaveUserPresetConstMeta,
+        argValues: [dbPath, name, filters, preamp, headphoneName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleSaveUserPresetConstMeta =>
+      const TaskConstMeta(
+        debugName: "save_user_preset",
+        argNames: ["dbPath", "name", "filters", "preamp", "headphoneName"],
+      );
+
+  @override
   DualMeasurementResult crateApiSimpleSimulateDualChannelImbalance({
     required List<Point> baseCurve,
     required int seed,
@@ -591,7 +938,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_point(baseCurve, serializer);
           sse_encode_u_32(seed, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_dual_measurement_result,
@@ -620,7 +967,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 27,
             port: port_,
           );
         },
@@ -680,6 +1027,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CrossfeedCoefficients dco_decode_crossfeed_coefficients(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return CrossfeedCoefficients(
+      a0Lo: dco_decode_f_64(arr[0]),
+      b1Lo: dco_decode_f_64(arr[1]),
+      a0Hi: dco_decode_f_64(arr[2]),
+      a1Hi: dco_decode_f_64(arr[3]),
+      b1Hi: dco_decode_f_64(arr[4]),
+      gain: dco_decode_f_64(arr[5]),
+      fCut: dco_decode_f_64(arr[6]),
+      feedDb: dco_decode_f_64(arr[7]),
+      sampleRate: dco_decode_f_64(arr[8]),
+    );
+  }
+
+  @protected
+  CrossfeedConfig dco_decode_crossfeed_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return CrossfeedConfig(
+      enabled: dco_decode_bool(arr[0]),
+      fCut: dco_decode_f_64(arr[1]),
+      feedDb: dco_decode_f_64(arr[2]),
+      name: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  CrossfeedPresetMode dco_decode_crossfeed_preset_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return CrossfeedPresetMode.values[raw as int];
+  }
+
+  @protected
   DualMeasurementResult dco_decode_dual_measurement_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -698,6 +1084,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   double dco_decode_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
+  double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
   }
@@ -727,6 +1119,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
   }
 
   @protected
@@ -760,6 +1158,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<UserPresetModel> dco_decode_list_user_preset_model(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_user_preset_model).toList();
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -790,6 +1194,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void dco_decode_unit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return;
+  }
+
+  @protected
+  UserPresetModel dco_decode_user_preset_model(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return UserPresetModel(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      createdAt: dco_decode_String(arr[2]),
+      filters: dco_decode_list_active_filter(arr[3]),
+      preamp: dco_decode_f_32(arr[4]),
+      headphoneName: dco_decode_opt_String(arr[5]),
+    );
   }
 
   @protected
@@ -846,6 +1266,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CrossfeedCoefficients sse_decode_crossfeed_coefficients(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_a0Lo = sse_decode_f_64(deserializer);
+    var var_b1Lo = sse_decode_f_64(deserializer);
+    var var_a0Hi = sse_decode_f_64(deserializer);
+    var var_a1Hi = sse_decode_f_64(deserializer);
+    var var_b1Hi = sse_decode_f_64(deserializer);
+    var var_gain = sse_decode_f_64(deserializer);
+    var var_fCut = sse_decode_f_64(deserializer);
+    var var_feedDb = sse_decode_f_64(deserializer);
+    var var_sampleRate = sse_decode_f_64(deserializer);
+    return CrossfeedCoefficients(
+      a0Lo: var_a0Lo,
+      b1Lo: var_b1Lo,
+      a0Hi: var_a0Hi,
+      a1Hi: var_a1Hi,
+      b1Hi: var_b1Hi,
+      gain: var_gain,
+      fCut: var_fCut,
+      feedDb: var_feedDb,
+      sampleRate: var_sampleRate,
+    );
+  }
+
+  @protected
+  CrossfeedConfig sse_decode_crossfeed_config(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_fCut = sse_decode_f_64(deserializer);
+    var var_feedDb = sse_decode_f_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    return CrossfeedConfig(
+      enabled: var_enabled,
+      fCut: var_fCut,
+      feedDb: var_feedDb,
+      name: var_name,
+    );
+  }
+
+  @protected
+  CrossfeedPresetMode sse_decode_crossfeed_preset_mode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return CrossfeedPresetMode.values[inner];
+  }
+
+  @protected
   DualMeasurementResult sse_decode_dual_measurement_result(
     SseDeserializer deserializer,
   ) {
@@ -872,6 +1343,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat32();
+  }
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
   }
 
   @protected
@@ -902,6 +1379,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
   }
 
   @protected
@@ -964,6 +1447,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<UserPresetModel> sse_decode_list_user_preset_model(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <UserPresetModel>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_user_preset_model(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -997,6 +1494,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_decode_unit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  UserPresetModel sse_decode_user_preset_model(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_String(deserializer);
+    var var_filters = sse_decode_list_active_filter(deserializer);
+    var var_preamp = sse_decode_f_32(deserializer);
+    var var_headphoneName = sse_decode_opt_String(deserializer);
+    return UserPresetModel(
+      id: var_id,
+      name: var_name,
+      createdAt: var_createdAt,
+      filters: var_filters,
+      preamp: var_preamp,
+      headphoneName: var_headphoneName,
+    );
   }
 
   @protected
@@ -1040,6 +1556,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_crossfeed_coefficients(
+    CrossfeedCoefficients self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.a0Lo, serializer);
+    sse_encode_f_64(self.b1Lo, serializer);
+    sse_encode_f_64(self.a0Hi, serializer);
+    sse_encode_f_64(self.a1Hi, serializer);
+    sse_encode_f_64(self.b1Hi, serializer);
+    sse_encode_f_64(self.gain, serializer);
+    sse_encode_f_64(self.fCut, serializer);
+    sse_encode_f_64(self.feedDb, serializer);
+    sse_encode_f_64(self.sampleRate, serializer);
+  }
+
+  @protected
+  void sse_encode_crossfeed_config(
+    CrossfeedConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_f_64(self.fCut, serializer);
+    sse_encode_f_64(self.feedDb, serializer);
+    sse_encode_String(self.name, serializer);
+  }
+
+  @protected
+  void sse_encode_crossfeed_preset_mode(
+    CrossfeedPresetMode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_dual_measurement_result(
     DualMeasurementResult self,
     SseSerializer serializer,
@@ -1058,6 +1612,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat32(self);
+  }
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
   }
 
   @protected
@@ -1083,6 +1643,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
   }
 
   @protected
@@ -1138,6 +1704,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_user_preset_model(
+    List<UserPresetModel> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_user_preset_model(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1169,6 +1747,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_user_preset_model(
+    UserPresetModel self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.createdAt, serializer);
+    sse_encode_list_active_filter(self.filters, serializer);
+    sse_encode_f_32(self.preamp, serializer);
+    sse_encode_opt_String(self.headphoneName, serializer);
   }
 
   @protected

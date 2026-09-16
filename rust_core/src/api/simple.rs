@@ -111,11 +111,35 @@ pub struct HeadphoneModel {
     pub file_path: Option<String>,
 }
 
+fn resolve_db_path(db_path: &str) -> std::path::PathBuf {
+    let p = std::path::PathBuf::from(db_path);
+    if p.exists() {
+        return p;
+    }
+    let flutter_app_db = std::path::PathBuf::from("flutter_app").join(db_path);
+    if flutter_app_db.exists() {
+        return flutter_app_db;
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let next_to_exe = dir.join(db_path);
+            if next_to_exe.exists() {
+                return next_to_exe;
+            }
+            let in_data = dir.join("data").join(db_path);
+            if in_data.exists() {
+                return in_data;
+            }
+        }
+    }
+    p
+}
+
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_headphone_models(db_path: String) -> Vec<HeadphoneModel> {
     let mut models = Vec::new();
-    
-    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+    let resolved = resolve_db_path(&db_path);
+    if let Ok(conn) = rusqlite::Connection::open(&resolved) {
         if let Ok(mut stmt) = conn.prepare("SELECT brand, model, form_factor, rig, file_path FROM measurements ORDER BY brand, model") {
             let model_iter = stmt.query_map([], |row| {
                 Ok(HeadphoneModel {
@@ -141,8 +165,8 @@ pub fn get_headphone_models(db_path: String) -> Vec<HeadphoneModel> {
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_targets(db_path: String) -> Vec<String> {
     let mut targets = Vec::new();
-    
-    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+    let resolved = resolve_db_path(&db_path);
+    if let Ok(conn) = rusqlite::Connection::open(&resolved) {
         if let Ok(mut stmt) = conn.prepare("SELECT name FROM targets ORDER BY name") {
             let target_iter = stmt.query_map([], |row| {
                 let name: String = row.get(0)?;
@@ -162,7 +186,8 @@ pub fn get_targets(db_path: String) -> Vec<String> {
 
 #[flutter_rust_bridge::frb]
 pub async fn sync_database(db_path: String) -> Result<(), String> {
-    crate::fetcher::initialize_autoeq_metadata(&db_path)
+    let resolved = resolve_db_path(&db_path);
+    crate::fetcher::initialize_autoeq_metadata(resolved.to_str().unwrap_or(&db_path))
         .await
         .map_err(|e| e.to_string())
 }
@@ -172,7 +197,8 @@ pub fn get_target_curve(db_path: String, target_name: String) -> Vec<Point> {
     use rusqlite::Connection;
     
     let mut points = Vec::new();
-    if let Ok(conn) = Connection::open(&db_path) {
+    let resolved = resolve_db_path(&db_path);
+    if let Ok(conn) = Connection::open(&resolved) {
         if let Ok(mut stmt) = conn.prepare("SELECT points_blob FROM targets WHERE name = ?") {
             if let Ok(mut rows) = stmt.query([&target_name]) {
                 if let Ok(Some(row)) = rows.next() {
@@ -481,16 +507,26 @@ pub fn match_raw_channels(raw_l: Vec<Point>, raw_r: Vec<Point>, max_bands: usize
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_audio_devices() -> Vec<String> {
     let mut devices = Vec::new();
-    if let Ok(output) = std::process::Command::new("pactl")
-        .args(&["list", "sinks", "short"])
-        .output() {
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() >= 2 {
-                devices.push(parts[1].to_string());
+    #[cfg(target_os = "windows")]
+    {
+        devices.push("Default Playback Device (Equalizer APO)".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(output) = std::process::Command::new("pactl")
+            .args(&["list", "sinks", "short"])
+            .output() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                let parts: Vec<&str> = line.split('\t').collect();
+                if parts.len() >= 2 {
+                    devices.push(parts[1].to_string());
+                }
             }
         }
+    }
+    if devices.is_empty() {
+        devices.push("Default Output Device".to_string());
     }
     devices
 }
@@ -501,62 +537,127 @@ pub fn apply_stereo_eq_to_device(
     left_filters: Vec<ActiveFilter>,
     right_filters: Vec<ActiveFilter>,
 ) {
-    use std::fs::File;
-    use std::io::Write;
-    use std::process::Command;
+    #[cfg(target_os = "windows")]
+    {
+        let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
+        let mut apo_text = String::new();
+        apo_text.push_str("# UltEQ Equalizer APO Configuration\n");
+        apo_text.push_str("Preamp: 0.0 dB\n\n");
 
-    // Kill any existing instance
-    let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
-    
-    let config_path = "/tmp/ulteq_eq.conf";
-    let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
+        if is_stereo_split {
+            apo_text.push_str("Channel: L\n");
+            for (i, filter) in left_filters.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "PK",
+                    FilterType::LowShelf => "LS",
+                    FilterType::HighShelf => "HS",
+                };
+                apo_text.push_str(&format!(
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    i + 1, label, filter.freq, filter.gain, filter.q
+                ));
+            }
 
-    let config_content = if is_stereo_split {
-        let mut nodes = String::new();
-        let mut links = String::new();
-
-        for (i, filter) in left_filters.iter().enumerate() {
-            let label = match filter.filter_type {
-                FilterType::Peaking => "bq_peaking",
-                FilterType::LowShelf => "bq_lowshelf",
-                FilterType::HighShelf => "bq_highshelf",
-            };
-            nodes.push_str(&format!(r#"
-                    {{
-                        type = builtin
-                        name = eq_l_{}
-                        label = {}
-                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
-                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
-            if i > 0 {
-                links.push_str(&format!(r#"
-                    {{ output = "eq_l_{}:Out" input = "eq_l_{}:In" }}"#, i, i + 1));
+            apo_text.push_str("\nChannel: R\n");
+            for (i, filter) in right_filters.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "PK",
+                    FilterType::LowShelf => "LS",
+                    FilterType::HighShelf => "HS",
+                };
+                apo_text.push_str(&format!(
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    i + 1, label, filter.freq, filter.gain, filter.q
+                ));
+            }
+        } else {
+            let active = if !left_filters.is_empty() { &left_filters } else { &right_filters };
+            apo_text.push_str("Channel: all\n");
+            for (i, filter) in active.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "PK",
+                    FilterType::LowShelf => "LS",
+                    FilterType::HighShelf => "HS",
+                };
+                apo_text.push_str(&format!(
+                    "Filter {}: ON {} Fc {:.1} Hz Gain {:.1} Q {:.2}\n",
+                    i + 1, label, filter.freq, filter.gain, filter.q
+                ));
             }
         }
 
-        for (i, filter) in right_filters.iter().enumerate() {
-            let label = match filter.filter_type {
-                FilterType::Peaking => "bq_peaking",
-                FilterType::LowShelf => "bq_lowshelf",
-                FilterType::HighShelf => "bq_highshelf",
-            };
-            nodes.push_str(&format!(r#"
-                    {{
-                        type = builtin
-                        name = eq_r_{}
-                        label = {}
-                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
-                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
-            if i > 0 {
-                links.push_str(&format!(r#"
-                    {{ output = "eq_r_{}:Out" input = "eq_r_{}:In" }}"#, i, i + 1));
-            }
+        // Try writing to default Equalizer APO config location
+        let standard_apo_path = r"C:\Program Files\EqualizerAPO\config\config.txt";
+        let _ = std::fs::write(standard_apo_path, &apo_text);
+
+        // Also write to user TEMP directory as backup
+        if let Ok(temp_dir) = std::env::var("TEMP") {
+            let temp_apo = format!(r"{}\ulteq_apo_config.txt", temp_dir);
+            let _ = std::fs::write(&temp_apo, &apo_text);
         }
 
-        let l_last = left_filters.len();
-        let r_last = right_filters.len();
+        // Also write in working directory
+        let _ = std::fs::write("ulteq_apo_config.txt", &apo_text);
+    }
 
-        format!(r#"
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::fs::File;
+        use std::io::Write;
+        use std::process::Command;
+
+        // Kill any existing instance
+        let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
+        
+        let config_path = "/tmp/ulteq_eq.conf";
+        let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
+
+        let config_content = if is_stereo_split {
+            let mut nodes = String::new();
+            let mut links = String::new();
+
+            for (i, filter) in left_filters.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "bq_peaking",
+                    FilterType::LowShelf => "bq_lowshelf",
+                    FilterType::HighShelf => "bq_highshelf",
+                };
+                nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = eq_l_{}
+                            label = {}
+                            control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                        }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                if i > 0 {
+                    links.push_str(&format!(r#"
+                        {{ output = "eq_l_{}:Out" input = "eq_l_{}:In" }}"#, i, i + 1));
+                }
+            }
+
+            for (i, filter) in right_filters.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "bq_peaking",
+                    FilterType::LowShelf => "bq_lowshelf",
+                    FilterType::HighShelf => "bq_highshelf",
+                };
+                nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = eq_r_{}
+                            label = {}
+                            control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                        }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                if i > 0 {
+                    links.push_str(&format!(r#"
+                        {{ output = "eq_r_{}:Out" input = "eq_r_{}:In" }}"#, i, i + 1));
+                }
+            }
+
+            let l_last = left_filters.len();
+            let r_last = right_filters.len();
+
+            format!(r#"
 context.spa-libs = {{
     audio.convert.* = audioconvert/libspa-audioconvert
     support.*       = support/libspa-support
@@ -592,30 +693,30 @@ context.modules = [
     }}
 ]
 "#)
-    } else {
-        let active = if !left_filters.is_empty() { &left_filters } else { &right_filters };
-        let mut nodes = String::new();
-        let mut links = String::new();
-        for (i, filter) in active.iter().enumerate() {
-            let label = match filter.filter_type {
-                FilterType::Peaking => "bq_peaking",
-                FilterType::LowShelf => "bq_lowshelf",
-                FilterType::HighShelf => "bq_highshelf",
-            };
-            nodes.push_str(&format!(r#"
-                    {{
-                        type = builtin
-                        name = eq_band_{}
-                        label = {}
-                        control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
-                    }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
-            if i > 0 {
-                links.push_str(&format!(r#"
-                    {{ output = "eq_band_{}:Out" input = "eq_band_{}:In" }}"#, i, i + 1));
+        } else {
+            let active = if !left_filters.is_empty() { &left_filters } else { &right_filters };
+            let mut nodes = String::new();
+            let mut links = String::new();
+            for (i, filter) in active.iter().enumerate() {
+                let label = match filter.filter_type {
+                    FilterType::Peaking => "bq_peaking",
+                    FilterType::LowShelf => "bq_lowshelf",
+                    FilterType::HighShelf => "bq_highshelf",
+                };
+                nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = eq_band_{}
+                            label = {}
+                            control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                        }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                if i > 0 {
+                    links.push_str(&format!(r#"
+                        {{ output = "eq_band_{}:Out" input = "eq_band_{}:In" }}"#, i, i + 1));
+                }
             }
-        }
 
-        format!(r#"
+            format!(r#"
 context.spa-libs = {{
     audio.convert.* = audioconvert/libspa-audioconvert
     support.*       = support/libspa-support
@@ -649,20 +750,19 @@ context.modules = [
     }}
 ]
 "#)
-    };
+        };
 
-    if let Ok(mut file) = File::create(config_path) {
-        let _ = file.write_all(config_content.as_bytes());
+        if let Ok(mut file) = File::create(config_path) {
+            let _ = file.write_all(config_content.as_bytes());
+        }
+
+        if let Err(e) = Command::new("pipewire")
+            .arg("-c")
+            .arg(config_path)
+            .spawn() {
+            eprintln!("Failed to spawn PipeWire filter chain: {}", e);
+        }
     }
-
-    Command::new("pipewire")
-        .arg("-c")
-        .arg(config_path)
-        .spawn()
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to start PipeWire EQ: {}", e);
-            panic!("Failed to start PipeWire EQ: {}", e);
-        });
 }
 
 #[flutter_rust_bridge::frb(sync)]

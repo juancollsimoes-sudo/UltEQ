@@ -1,0 +1,154 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows (.exe & installer)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Windows Application
+        working-directory: flutter_app
+        run: flutter build windows --release
+
+      - name: Bundle Database
+        run: |
+          Copy-Item -Path "flutter_app\ulteq.db" -Destination "flutter_app\build\windows\x64\runner\Release\ulteq.db"
+
+      - name: Compile Inno Setup Installer (.exe)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" flutter_app\windows\installer\installer.iss
+
+      - name: Package Windows Artifacts
+        run: |
+          New-Item -ItemType Directory -Force -Path "release_assets"
+          Copy-Item -Path "flutter_app\build\windows\installer\UltEQ-Setup-v1.0.0-x64.exe" -Destination "release_assets\UltEQ-Setup-v1.0.0-x64.exe"
+          Copy-Item -Path "flutter_app\build\windows\x64\runner\Release\UltEQ.exe" -Destination "release_assets\UltEQ.exe"
+          Compress-Archive -Path "flutter_app\build\windows\x64\runner\Release\*" -DestinationPath "release_assets\UltEQ-v1.0.0-windows-x64-portable.zip"
+
+      - name: Determine Tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Windows Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: UltEQ ${{ steps.vars.outputs.tag }} - Surgical Audio Precision
+          body: |
+            ## 🎧 UltEQ Release ${{ steps.vars.outputs.tag }}
+
+            ### Windows Downloads:
+            - **[UltEQ-Setup-v1.0.0-x64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-Setup-v1.0.0-x64.exe)** — Complete Windows Installer (.exe)
+            - **[UltEQ-v1.0.0-windows-x64-portable.zip](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ-v1.0.0-windows-x64-portable.zip)** — Portable standalone zip package
+            - **[UltEQ.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.vars.outputs.tag }}/UltEQ.exe)** — Standalone executable
+
+            ### Key Capabilities:
+            - 🎯 **Surgical Parametric AutoEq:** Greedy Peak Pursuit + Cyclic Coordinate Descent multi-biquad optimization.
+            - ⚖️ **Raw Channel Matching:** Symmetric Midline driver acoustic calibration ($Raw_{\text{mid}} = (L + R) / 2$) with anti-symmetric twin biquads.
+            - 📊 **Crinacle Industry-Standard Scale:** 55 dB SPL span with 50 dB sweet-spot normalized at 1 kHz.
+            - 🎛️ **Audio Engines:** Native Equalizer APO on Windows and native PipeWire filter chains on Linux.
+            - 📂 **Headphone & Target Database:** Embedded database featuring 6,800+ acoustic measurements.
+          files: |
+            release_assets/UltEQ-Setup-v1.0.0-x64.exe
+            release_assets/UltEQ.exe
+            release_assets/UltEQ-v1.0.0-windows-x64-portable.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    name: Build Linux (.tar.gz)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libasound2-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Linux Desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Linux Application
+        working-directory: flutter_app
+        run: flutter build linux --release
+
+      - name: Bundle Database
+        run: |
+          cp flutter_app/ulteq.db flutter_app/build/linux/x64/release/bundle/
+
+      - name: Package Linux Tarball
+        run: |
+          tar -czvf UltEQ-linux-x64.tar.gz -C flutter_app/build/linux/x64/release/bundle .
+
+      - name: Determine Tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Linux Tarball to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          files: UltEQ-linux-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

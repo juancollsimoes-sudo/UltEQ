@@ -5,11 +5,12 @@
 
 [![Rust](https://img.shields.io/badge/rust-2021_edition-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Flutter](https://img.shields.io/badge/flutter-3.x_desktop-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev/)
-[![PipeWire](https://img.shields.io/badge/audio-pipewire_native-8A2BE2?style=for-the-badge&logo=linux&logoColor=white)](https://pipewire.org/)
+[![Windows](https://img.shields.io/badge/windows-installer_%26_exe-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/juancollsimoes-sudo/UltEQ/releases)
+[![Linux](https://img.shields.io/badge/linux-pipewire_native-8A2BE2?style=for-the-badge&logo=linux&logoColor=white)](https://pipewire.org/)
 [![DSP](https://img.shields.io/badge/dsp-autoeq_%26_iec711-10B981?style=for-the-badge)](https://github.com/jaakkopasanen/AutoEq)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
-*An audiophile-grade, system-wide parametric equalizer and acoustic calibration workstation. Powered by a high-performance native Rust DSP core, seamless PipeWire filter-chain injection, and an obsidian Linear Dark Precision interface.*
+*An audiophile-grade, system-wide parametric equalizer and acoustic calibration workstation for Windows and Linux. Powered by a high-performance native Rust DSP core, seamless audio server injection (PipeWire on Linux, Equalizer APO on Windows), and an obsidian Linear Dark Precision interface.*
 
 ---
 

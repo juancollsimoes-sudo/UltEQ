@@ -653,6 +653,11 @@ pub fn apply_stereo_eq_to_device(
         // Kill any existing instance
         let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
         
+        // If no filters are provided, EQ is bypassed/disabled. Just exit cleanly.
+        if left_filters.is_empty() && right_filters.is_empty() {
+            return;
+        }
+        
         let config_path = "/tmp/ulteq_eq.conf";
         let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
 

@@ -45,9 +45,11 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
 
   void _initDefaultDevice() {
     try {
-      final devices = getAudioDevices();
+      final devices = getAudioDevices().toSet().toList();
       if (devices.isNotEmpty) {
-        _eqState.selectedOutputDevice = devices.first;
+        if (_eqState.selectedOutputDevice == null || !devices.contains(_eqState.selectedOutputDevice)) {
+          _eqState.selectedOutputDevice = devices.first;
+        }
       }
     } catch (_) {}
   }
@@ -60,14 +62,29 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
   }
 
   Future<void> _showAudioConfigDialog() async {
-    final devices = getAudioDevices();
-    String? selected = _eqState.selectedOutputDevice ?? (devices.isNotEmpty ? devices.first : null);
+    final rawDevices = getAudioDevices();
+    final devices = rawDevices.toSet().toList();
+    if (devices.isEmpty) {
+      devices.add('Default Output Device');
+    }
+
+    String? selected;
+    if (_eqState.selectedOutputDevice != null && devices.contains(_eqState.selectedOutputDevice)) {
+      selected = _eqState.selectedOutputDevice;
+    } else {
+      selected = devices.first;
+      _eqState.selectedOutputDevice = selected;
+    }
 
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final effectiveValue = (selected != null && devices.contains(selected))
+                ? selected
+                : (devices.isNotEmpty ? devices.first : null);
+
             return Dialog(
               backgroundColor: AppColors.surfaceRaised,
               shape: RoundedRectangleBorder(
@@ -113,7 +130,7 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: selected,
+                          value: effectiveValue,
                           isExpanded: true,
                           dropdownColor: AppColors.surfaceRaised,
                           icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppColors.textSecondary),
@@ -128,7 +145,9 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                             );
                           }).toList(),
                           onChanged: (val) {
-                            setState(() => selected = val);
+                            if (val != null) {
+                              setState(() => selected = val);
+                            }
                           },
                         ),
                       ),
@@ -191,6 +210,7 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
         _eqState.nodes.add(EqNode(freq: f.freq, gain: f.gain, q: f.q, type: nodeType));
       }
       _eqState.selectedIndex = _eqState.nodes.isNotEmpty ? 0 : null;
+      _eqState.isAutoEqActive = true;
       _eqState.triggerUpdate();
 
       final shelfCount = filters.where((f) => f.filterType == FilterType.lowShelf).length;
@@ -201,6 +221,10 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
         icon: Icons.auto_awesome,
         color: AppColors.primaryLight,
       );
+
+      if (_eqState.selectedOutputDevice != null && !_eqState.isBypassActive) {
+        _applyEq();
+      }
     } catch (e) {
       _showModernToast('AutoEq failed: $e', icon: Icons.error_outline, color: AppColors.rose);
     } finally {
@@ -258,9 +282,11 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
     if (_eqState.selectedOutputDevice != null) {
       if (isBypassed) {
         try {
+          getCrossfeedPresetByName(modeName: 'off');
           applyEqToDevice(deviceName: _eqState.selectedOutputDevice!, filters: []);
         } catch (_) {}
       } else {
+        _eqState.setCrossfeedMode(_eqState.crossfeedMode);
         _applyEq();
         return;
       }
@@ -683,7 +709,16 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
                     Expanded(
                       child: LogarithmicCanvas(eqState: _eqState),
                     ),
-                    TargetAdjustmentsPanel(eqState: _eqState),
+                    TargetAdjustmentsPanel(
+                      eqState: _eqState,
+                      onTargetChanged: () {
+                        if (_eqState.nodes.isNotEmpty &&
+                            _eqState.headphoneCurve.isNotEmpty &&
+                            _eqState.targetCurve.isNotEmpty) {
+                          _runAutoEq();
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -816,6 +851,12 @@ class _MainWorkspaceState extends State<MainWorkspace> with SingleTickerProvider
           icon: Icons.headphones,
           color: selected == 'Off' ? AppColors.textMuted : AppColors.cyanLight,
         );
+        if (_eqState.selectedOutputDevice == null) {
+          _initDefaultDevice();
+        }
+        if (_eqState.selectedOutputDevice != null && !_eqState.isBypassActive) {
+          _applyEq();
+        }
       },
       itemBuilder: (context) => [
         const PopupMenuItem(

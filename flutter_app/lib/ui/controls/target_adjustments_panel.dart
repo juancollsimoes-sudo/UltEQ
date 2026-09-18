@@ -5,8 +5,13 @@ import '../theme/app_theme.dart';
 
 class TargetAdjustmentsPanel extends StatefulWidget {
   final EqState eqState;
+  final VoidCallback? onTargetChanged;
 
-  const TargetAdjustmentsPanel({super.key, required this.eqState});
+  const TargetAdjustmentsPanel({
+    super.key,
+    required this.eqState,
+    this.onTargetChanged,
+  });
 
   @override
   State<TargetAdjustmentsPanel> createState() => _TargetAdjustmentsPanelState();
@@ -179,12 +184,14 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> with Si
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
-                              value: selectedTarget,
+                              value: (selectedTarget != null && filteredTargets.contains(selectedTarget))
+                                  ? selectedTarget
+                                  : (filteredTargets.isNotEmpty ? filteredTargets.first : null),
                               isExpanded: true,
                               dropdownColor: AppColors.surfaceRaised,
                               icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textSecondary),
                               style: const TextStyle(fontSize: 11, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-                              items: filteredTargets.map((t) {
+                              items: filteredTargets.toSet().map((t) {
                                 return DropdownMenuItem(
                                   value: t,
                                   child: Text(t, overflow: TextOverflow.ellipsis),
@@ -194,6 +201,7 @@ class _TargetAdjustmentsPanelState extends State<TargetAdjustmentsPanel> with Si
                                 if (val != null) {
                                   setState(() => selectedTarget = val);
                                   widget.eqState.loadTarget(val);
+                                  widget.onTargetChanged?.call();
                                 }
                               },
                             ),

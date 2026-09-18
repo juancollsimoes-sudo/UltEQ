@@ -954,8 +954,6 @@ impl AutoEqEngine {
             }
             let current_mse = ctx.evaluate_total_mse_zero(&r);
 
-            let has_low_shelf = filters.iter().any(|f| f.filter_type == BiquadFilterType::LowShelf);
-
             let mut max_weighted_residual = -1.0_f64;
             let mut peak_idx = None;
 
@@ -965,18 +963,15 @@ impl AutoEqEngine {
                     continue;
                 }
 
-                // If a Low Shelf already covers the sub-bass shelf, don't place peaking filters below 90 Hz
-                if has_low_shelf && f_i < 90.0 {
-                    continue;
-                }
-
-                // Critical Band Separation (Bark/ERB): Do not crowd filters closer than 0.65 octaves (ratio < 1.55)
+                // Critical Band Separation (Bark/ERB): Do not crowd filters
                 let too_close = filters.iter().any(|flt| {
-                    if flt.filter_type == BiquadFilterType::Peaking {
-                        let ratio = (f_i / flt.freq).max(flt.freq / f_i);
-                        ratio < 1.55
+                    let ratio = (f_i / flt.freq).max(flt.freq / f_i);
+                    if flt.filter_type == BiquadFilterType::LowShelf {
+                        ratio < 1.85 || f_i < flt.freq * 1.3
+                    } else if flt.filter_type == BiquadFilterType::HighShelf {
+                        ratio < 1.85 || f_i > flt.freq / 1.3
                     } else {
-                        false
+                        ratio < 1.55
                     }
                 });
                 if too_close {

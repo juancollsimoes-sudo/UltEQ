@@ -59,6 +59,7 @@ class EqState extends ChangeNotifier {
 
   double preampGain = 0.0;
   bool isComputingAutoeq = false;
+  bool isAutoEqActive = false;
   bool isBypassActive = false;
   String crossfeedMode = 'Off';
   CrossfeedConfig? crossfeedConfig;

@@ -520,7 +520,10 @@ pub fn get_audio_devices() -> Vec<String> {
             for line in text.lines() {
                 let parts: Vec<&str> = line.split('\t').collect();
                 if parts.len() >= 2 {
-                    devices.push(parts[1].to_string());
+                    let dev = parts[1].trim().to_string();
+                    if !dev.is_empty() && !devices.contains(&dev) {
+                        devices.push(dev);
+                    }
                 }
             }
         }
@@ -598,6 +601,19 @@ pub fn apply_stereo_eq_to_device(
             }
         }
 
+        let cf_mode = get_active_crossfeed_mode();
+        let is_crossfeed_active = cf_mode != CrossfeedPresetMode::Off;
+        if is_crossfeed_active {
+            let (cf_g_direct, cf_g_cross) = match cf_mode {
+                CrossfeedPresetMode::Studio => (0.75, 0.50),
+                _ => (0.85, 0.35),
+            };
+            apo_text.push_str(&format!(
+                "\n# Bauer BS2B Crossfeed\nCopy: L={:.2}*L+{:.2}*R R={:.2}*R+{:.2}*L\n",
+                cf_g_direct, cf_g_cross, cf_g_direct, cf_g_cross
+            ));
+        }
+
         // Potential Equalizer APO directory paths
         let apo_dirs = [
             r"C:\Program Files\EqualizerAPO\config",
@@ -650,18 +666,188 @@ pub fn apply_stereo_eq_to_device(
         use std::io::Write;
         use std::process::Command;
 
+        let cf_mode = get_active_crossfeed_mode();
+        let is_crossfeed_active = cf_mode != CrossfeedPresetMode::Off;
+
         // Kill any existing instance
         let _ = Command::new("pkill").arg("-f").arg("ulteq_eq.conf").output();
         
-        // If no filters are provided, EQ is bypassed/disabled. Just exit cleanly.
-        if left_filters.is_empty() && right_filters.is_empty() {
+        // If no filters are provided and crossfeed is disabled, EQ is bypassed/disabled. Just exit cleanly.
+        if !is_crossfeed_active && left_filters.is_empty() && right_filters.is_empty() {
             return;
         }
         
         let config_path = "/tmp/ulteq_eq.conf";
         let is_stereo_split = !left_filters.is_empty() && !right_filters.is_empty();
 
-        let config_content = if is_stereo_split {
+        let config_content = if is_crossfeed_active {
+            let (cf_fcut, cf_g_direct, cf_g_cross) = match cf_mode {
+                CrossfeedPresetMode::Studio => (650.0, 0.75, 0.50),
+                _ => (700.0, 0.85, 0.35),
+            };
+
+            let left_to_use = if !left_filters.is_empty() {
+                &left_filters
+            } else if !right_filters.is_empty() {
+                &right_filters
+            } else {
+                &left_filters
+            };
+
+            let right_to_use = if !right_filters.is_empty() {
+                &right_filters
+            } else if !left_filters.is_empty() {
+                &left_filters
+            } else {
+                &right_filters
+            };
+
+            let mut nodes = String::new();
+            let mut links = String::new();
+
+            let first_l;
+            let last_l;
+            if left_to_use.is_empty() {
+                nodes.push_str(r#"
+                        {
+                            type = builtin
+                            name = eq_l_pass
+                            label = bq_peaking
+                            control = { "Freq" = 1000.0 "Q" = 1.0 "Gain" = 0.0 }
+                        }"#);
+                first_l = "eq_l_pass:In".to_string();
+                last_l = "eq_l_pass:Out".to_string();
+            } else {
+                for (i, filter) in left_to_use.iter().enumerate() {
+                    let label = match filter.filter_type {
+                        FilterType::Peaking => "bq_peaking",
+                        FilterType::LowShelf => "bq_lowshelf",
+                        FilterType::HighShelf => "bq_highshelf",
+                    };
+                    nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = eq_l_{}
+                            label = {}
+                            control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                        }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                    if i > 0 {
+                        links.push_str(&format!(r#"
+                        {{ output = "eq_l_{}:Out" input = "eq_l_{}:In" }}"#, i, i + 1));
+                    }
+                }
+                first_l = "eq_l_1:In".to_string();
+                last_l = format!("eq_l_{}:Out", left_to_use.len());
+            }
+
+            let first_r;
+            let last_r;
+            if right_to_use.is_empty() {
+                nodes.push_str(r#"
+                        {
+                            type = builtin
+                            name = eq_r_pass
+                            label = bq_peaking
+                            control = { "Freq" = 1000.0 "Q" = 1.0 "Gain" = 0.0 }
+                        }"#);
+                first_r = "eq_r_pass:In".to_string();
+                last_r = "eq_r_pass:Out".to_string();
+            } else {
+                for (i, filter) in right_to_use.iter().enumerate() {
+                    let label = match filter.filter_type {
+                        FilterType::Peaking => "bq_peaking",
+                        FilterType::LowShelf => "bq_lowshelf",
+                        FilterType::HighShelf => "bq_highshelf",
+                    };
+                    nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = eq_r_{}
+                            label = {}
+                            control = {{ "Freq" = {:.1} "Q" = {:.2} "Gain" = {:.1} }}
+                        }}"#, i + 1, label, filter.freq, filter.q, filter.gain));
+                    if i > 0 {
+                        links.push_str(&format!(r#"
+                        {{ output = "eq_r_{}:Out" input = "eq_r_{}:In" }}"#, i, i + 1));
+                    }
+                }
+                first_r = "eq_r_1:In".to_string();
+                last_r = format!("eq_r_{}:Out", right_to_use.len());
+            }
+
+            // Crossfeed nodes and links
+            nodes.push_str(&format!(r#"
+                        {{
+                            type = builtin
+                            name = xfeed_lp_l
+                            label = bq_lowpass
+                            control = {{ "Freq" = {:.1} "Q" = 0.5 }}
+                        }}
+                        {{
+                            type = builtin
+                            name = xfeed_lp_r
+                            label = bq_lowpass
+                            control = {{ "Freq" = {:.1} "Q" = 0.5 }}
+                        }}
+                        {{
+                            type = builtin
+                            name = mix_l
+                            label = mixer
+                            control = {{ "Gain 1" = {:.2} "Gain 2" = {:.2} }}
+                        }}
+                        {{
+                            type = builtin
+                            name = mix_r
+                            label = mixer
+                            control = {{ "Gain 1" = {:.2} "Gain 2" = {:.2} }}
+                        }}"#, cf_fcut, cf_fcut, cf_g_direct, cf_g_cross, cf_g_direct, cf_g_cross));
+
+            links.push_str(&format!(r#"
+                        {{ output = "{last_l}" input = "mix_l:In 1" }}
+                        {{ output = "{last_l}" input = "xfeed_lp_l:In" }}
+                        {{ output = "xfeed_lp_l:Out" input = "mix_r:In 2" }}
+
+                        {{ output = "{last_r}" input = "mix_r:In 1" }}
+                        {{ output = "{last_r}" input = "xfeed_lp_r:In" }}
+                        {{ output = "xfeed_lp_r:Out" input = "mix_l:In 2" }}"#));
+
+            format!(r#"
+context.spa-libs = {{
+    audio.convert.* = audioconvert/libspa-audioconvert
+    support.*       = support/libspa-support
+}}
+context.modules = [
+    {{ name = libpipewire-module-rt flags = [ ifexists nofail ] }}
+    {{ name = libpipewire-module-protocol-native }}
+    {{ name = libpipewire-module-client-node }}
+    {{ name = libpipewire-module-adapter }}
+    {{ name = libpipewire-module-filter-chain
+        args = {{
+            node.description = "UltEQ Effect (BS2B Crossfeed)"
+            media.name       = "UltEQ Effect (BS2B Crossfeed)"
+            filter.graph = {{
+                nodes = [{nodes}
+                ]
+                links = [{links}
+                ]
+                inputs  = [ "{first_l}" "{first_r}" ]
+                outputs = [ "mix_l:Out" "mix_r:Out" ]
+            }}
+            audio.channels = 2
+            audio.position = [ FL FR ]
+            capture.props = {{
+                node.name = "effect_input.ulteq"
+                media.class = Audio/Sink
+            }}
+            playback.props = {{
+                node.name = "effect_output.ulteq"
+                node.target = "{device_name}"
+            }}
+        }}
+    }}
+]
+"#)
+        } else if is_stereo_split {
             let mut nodes = String::new();
             let mut links = String::new();
 
@@ -1244,6 +1430,12 @@ pub struct CrossfeedConfig {
     pub name: String,
 }
 
+static ACTIVE_CROSSFEED: std::sync::Mutex<CrossfeedPresetMode> = std::sync::Mutex::new(CrossfeedPresetMode::Off);
+
+pub fn get_active_crossfeed_mode() -> CrossfeedPresetMode {
+    ACTIVE_CROSSFEED.lock().map(|l| *l).unwrap_or(CrossfeedPresetMode::Off)
+}
+
 #[flutter_rust_bridge::frb(sync)]
 pub fn apply_crossfeed_coefficients(sample_rate: f64, f_cut: f64, feed_db: f64) -> CrossfeedCoefficients {
     crate::dsp::crossfeed::calculate_crossfeed_coefficients(sample_rate, f_cut, feed_db)
@@ -1251,6 +1443,9 @@ pub fn apply_crossfeed_coefficients(sample_rate: f64, f_cut: f64, feed_db: f64) 
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_crossfeed_preset(mode: CrossfeedPresetMode) -> CrossfeedConfig {
+    if let Ok(mut lock) = ACTIVE_CROSSFEED.lock() {
+        *lock = mode;
+    }
     match mode {
         CrossfeedPresetMode::Default => CrossfeedConfig {
             enabled: true,
@@ -1275,26 +1470,12 @@ pub fn get_crossfeed_preset(mode: CrossfeedPresetMode) -> CrossfeedConfig {
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_crossfeed_preset_by_name(mode_name: String) -> CrossfeedConfig {
-    match mode_name.trim().to_lowercase().as_str() {
-        "default" | "high" => CrossfeedConfig {
-            enabled: true,
-            f_cut: 700.0,
-            feed_db: 4.5,
-            name: "Default".to_string(),
-        },
-        "studio" | "jmeier" | "low" => CrossfeedConfig {
-            enabled: true,
-            f_cut: 650.0,
-            feed_db: 9.5,
-            name: "Studio".to_string(),
-        },
-        _ => CrossfeedConfig {
-            enabled: false,
-            f_cut: 0.0,
-            feed_db: 0.0,
-            name: "Off".to_string(),
-        },
-    }
+    let mode = match mode_name.trim().to_lowercase().as_str() {
+        "default" | "subtle" | "high" => CrossfeedPresetMode::Default,
+        "studio" | "jmeier" | "low" => CrossfeedPresetMode::Studio,
+        _ => CrossfeedPresetMode::Off,
+    };
+    get_crossfeed_preset(mode)
 }
 
 #[cfg(test)]
